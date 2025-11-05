@@ -1,0 +1,11 @@
+{
+  "ExpandedNodes": [
+    "",
+    "\\.claude",
+    "\\android-listener",
+    "\\telegram-bot",
+    "\\website"
+  ],
+  "SelectedNode": "\\telegram-bot\\TelegramBot.sln",
+  "PreviewInSolutionExplorer": false
+}
