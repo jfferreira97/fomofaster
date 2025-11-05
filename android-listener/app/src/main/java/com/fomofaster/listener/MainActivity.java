@@ -1,9 +1,13 @@
 package com.fomofaster.listener;
 
+import android.annotation.SuppressLint;
+import android.content.BroadcastReceiver;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.SharedPreferences;
+import android.os.Build;
 import android.os.Bundle;
 import android.provider.Settings;
 import android.text.TextUtils;
@@ -11,10 +15,17 @@ import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
+
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.List;
+import java.util.Locale;
 
 import org.json.JSONObject;
 
@@ -37,10 +48,15 @@ public class MainActivity extends AppCompatActivity {
     private Button saveButton;
     private Button enableListenerButton;
     private Button testButton;
+    private Button clearLogButton;
     private TextView statusText;
     private TextView instructionsText;
+    private LinearLayout logEntriesContainer;
 
     private OkHttpClient httpClient;
+    private List<NotificationLogEntry> logEntries;
+    private SimpleDateFormat dateFormat;
+    private BroadcastReceiver logReceiver;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -50,13 +66,19 @@ public class MainActivity extends AppCompatActivity {
         // Initialize HTTP client
         httpClient = new OkHttpClient();
 
+        // Initialize log
+        logEntries = new ArrayList<>();
+        dateFormat = new SimpleDateFormat("MMM dd HH:mm:ss", Locale.US);
+
         // Find views
         backendUrlInput = findViewById(R.id.backend_url_input);
         saveButton = findViewById(R.id.save_button);
         enableListenerButton = findViewById(R.id.enable_listener_button);
         testButton = findViewById(R.id.test_button);
+        clearLogButton = findViewById(R.id.clear_log_button);
         statusText = findViewById(R.id.status_text);
         instructionsText = findViewById(R.id.instructions_text);
+        logEntriesContainer = findViewById(R.id.log_entries_container);
 
         // Load saved backend URL
         loadBackendUrl();
@@ -65,16 +87,44 @@ public class MainActivity extends AppCompatActivity {
         saveButton.setOnClickListener(v -> saveBackendUrl());
         enableListenerButton.setOnClickListener(v -> openNotificationSettings());
         testButton.setOnClickListener(v -> testConnection());
+        clearLogButton.setOnClickListener(v -> clearLog());
+
+        // Set up broadcast receiver for log updates
+        setupLogReceiver();
 
         // Update status
         updateListenerStatus();
     }
 
+    @SuppressLint("UnspecifiedRegisterReceiverFlag")
     @Override
     protected void onResume() {
         super.onResume();
         // Update status when returning from settings
         updateListenerStatus();
+
+        // Re-register receiver
+        if (logReceiver != null) {
+            IntentFilter filter = new IntentFilter(FomoNotificationListener.LOG_BROADCAST_ACTION);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                registerReceiver(logReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
+            } else {
+                registerReceiver(logReceiver, filter);
+            }
+        }
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        // Unregister receiver to avoid memory leaks
+        if (logReceiver != null) {
+            try {
+                unregisterReceiver(logReceiver);
+            } catch (IllegalArgumentException e) {
+                // Receiver was not registered
+            }
+        }
     }
 
     private void loadBackendUrl() {
@@ -207,5 +257,126 @@ public class MainActivity extends AppCompatActivity {
             Toast.makeText(this, R.string.test_failed, Toast.LENGTH_SHORT).show();
             testButton.setEnabled(true);
         }
+    }
+
+    @SuppressWarnings("UnspecifiedRegisterReceiverFlag")
+    private void setupLogReceiver() {
+        logReceiver = new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context context, Intent intent) {
+                String status = intent.getStringExtra(FomoNotificationListener.EXTRA_STATUS);
+                String message = intent.getStringExtra(FomoNotificationListener.EXTRA_MESSAGE);
+                String response = intent.getStringExtra(FomoNotificationListener.EXTRA_RESPONSE);
+
+                Log.d(TAG, "Received log broadcast: " + status);
+                addLogEntryToUI(status, message, response);
+            }
+        };
+
+        IntentFilter filter = new IntentFilter(FomoNotificationListener.LOG_BROADCAST_ACTION);
+
+        // Register receiver with appropriate flags for Android 13+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(logReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
+        } else {
+            registerReceiver(logReceiver, filter);
+        }
+    }
+
+    private void clearLog() {
+        logEntries.clear();
+        refreshLogDisplay();
+        Toast.makeText(this, "Log cleared", Toast.LENGTH_SHORT).show();
+    }
+
+    private void addLogEntryToUI(String status, String message, String response) {
+        String timestamp = dateFormat.format(new Date());
+        NotificationLogEntry entry = new NotificationLogEntry(timestamp, status, message, response);
+        logEntries.add(0, entry); // Add to beginning (most recent first)
+
+        // Limit to 50 entries
+        if (logEntries.size() > 50) {
+            logEntries.remove(logEntries.size() - 1);
+        }
+
+        refreshLogDisplay();
+    }
+
+    private void refreshLogDisplay() {
+        runOnUiThread(() -> {
+            logEntriesContainer.removeAllViews();
+
+            if (logEntries.isEmpty()) {
+                TextView emptyView = new TextView(this);
+                emptyView.setText("No notifications logged yet");
+                emptyView.setTextSize(12);
+                emptyView.setPadding(8, 8, 8, 8);
+                emptyView.setGravity(android.view.Gravity.CENTER);
+                emptyView.setTextColor(0xFF999999);
+                logEntriesContainer.addView(emptyView);
+                return;
+            }
+
+            for (NotificationLogEntry entry : logEntries) {
+                LinearLayout row = new LinearLayout(this);
+                row.setOrientation(LinearLayout.HORIZONTAL);
+                row.setPadding(8, 8, 8, 8);
+
+                // Alternate row colors
+                int bgColor = (logEntries.indexOf(entry) % 2 == 0) ? 0xFFF5F5F5 : 0xFFFFFFFF;
+                row.setBackgroundColor(bgColor);
+
+                // Timestamp
+                TextView timestampView = new TextView(this);
+                timestampView.setText(entry.getTimestamp());
+                timestampView.setTextSize(11);
+                timestampView.setWidth(dpToPx(150));
+                timestampView.setPadding(0, 0, dpToPx(8), 0);
+                row.addView(timestampView);
+
+                // Status
+                TextView statusView = new TextView(this);
+                statusView.setText(entry.getStatus());
+                statusView.setTextSize(11);
+                statusView.setWidth(dpToPx(100));
+                statusView.setPadding(0, 0, dpToPx(8), 0);
+
+                // Color code status
+                if (entry.getStatus().contains("SUCCESS") || entry.getStatus().contains("200")) {
+                    statusView.setTextColor(0xFF4CAF50); // Green
+                } else if (entry.getStatus().contains("FAIL") || entry.getStatus().contains("ERROR")) {
+                    statusView.setTextColor(0xFFF44336); // Red
+                } else {
+                    statusView.setTextColor(0xFFFF9800); // Orange
+                }
+                row.addView(statusView);
+
+                // Message
+                TextView messageView = new TextView(this);
+                messageView.setText(entry.getMessage());
+                messageView.setTextSize(11);
+                messageView.setWidth(dpToPx(300));
+                messageView.setPadding(0, 0, dpToPx(8), 0);
+                messageView.setMaxLines(2);
+                messageView.setEllipsize(android.text.TextUtils.TruncateAt.END);
+                row.addView(messageView);
+
+                // Response
+                TextView responseView = new TextView(this);
+                responseView.setText(entry.getResponse());
+                responseView.setTextSize(11);
+                responseView.setWidth(dpToPx(200));
+                responseView.setMaxLines(2);
+                responseView.setEllipsize(android.text.TextUtils.TruncateAt.END);
+                row.addView(responseView);
+
+                logEntriesContainer.addView(row);
+            }
+        });
+    }
+
+    private int dpToPx(int dp) {
+        float density = getResources().getDisplayMetrics().density;
+        return Math.round(dp * density);
     }
 }

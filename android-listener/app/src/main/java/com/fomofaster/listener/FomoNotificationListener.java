@@ -5,6 +5,7 @@ import android.app.PendingIntent;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
+import android.content.Intent;
 import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.service.notification.NotificationListenerService;
@@ -29,6 +30,11 @@ public class FomoNotificationListener extends NotificationListenerService {
     private static final String FOMO_PACKAGE_NAME = "family.fomo.app";
     private static final String PREFS_NAME = "FomoFasterPrefs";
     private static final String BACKEND_URL_KEY = "backend_url";
+
+    public static final String LOG_BROADCAST_ACTION = "com.fomofaster.listener.LOG_ENTRY";
+    public static final String EXTRA_STATUS = "status";
+    public static final String EXTRA_MESSAGE = "message";
+    public static final String EXTRA_RESPONSE = "response";
 
     private OkHttpClient httpClient;
     private ClipboardManager clipboardManager;
@@ -196,14 +202,22 @@ public class FomoNotificationListener extends NotificationListenerService {
                 @Override
                 public void onFailure(Call call, IOException e) {
                     Log.e(TAG, "Failed to send notification to backend", e);
+                    broadcastLogEntry("FAILED", message, "Error: " + e.getMessage());
                 }
 
                 @Override
                 public void onResponse(Call call, Response response) throws IOException {
+                    String responseBody = "";
+                    if (response.body() != null) {
+                        responseBody = response.body().string();
+                    }
+
                     if (response.isSuccessful()) {
                         Log.d(TAG, "Successfully sent to backend: " + response.code());
+                        broadcastLogEntry("SUCCESS (" + response.code() + ")", message, responseBody);
                     } else {
                         Log.e(TAG, "Backend responded with error: " + response.code());
+                        broadcastLogEntry("ERROR (" + response.code() + ")", message, responseBody);
                     }
                     response.close();
                 }
@@ -211,7 +225,17 @@ public class FomoNotificationListener extends NotificationListenerService {
 
         } catch (Exception e) {
             Log.e(TAG, "Error sending to backend", e);
+            broadcastLogEntry("EXCEPTION", title + " " + text, "Error: " + e.getMessage());
         }
+    }
+
+    private void broadcastLogEntry(String status, String message, String response) {
+        Intent intent = new Intent(LOG_BROADCAST_ACTION);
+        intent.putExtra(EXTRA_STATUS, status);
+        intent.putExtra(EXTRA_MESSAGE, message);
+        intent.putExtra(EXTRA_RESPONSE, response);
+        sendBroadcast(intent);
+        Log.d(TAG, "Broadcast log entry: " + status);
     }
 
     @Override
