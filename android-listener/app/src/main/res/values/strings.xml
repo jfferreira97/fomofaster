@@ -5,6 +5,7 @@
     <string name="backend_url_hint">http://10.0.2.2:8000</string>
     <string name="save_button">Save Configuration</string>
     <string name="enable_listener_button">Enable Notification Listener</string>
+    <string name="enable_accessibility_button">Enable Accessibility Service</string>
     <string name="test_button">Test Connection</string>
     <string name="status_label">Status:</string>
     <string name="status_waiting">Waiting for notifications...</string>
@@ -13,5 +14,6 @@
     <string name="test_success">Connection successful!</string>
     <string name="test_failed">Connection failed. Check URL and network.</string>
     <string name="config_saved">Configuration saved</string>
-    <string name="instructions">1. Enter your backend URL\n2. Tap \"Enable Notification Listener\"\n3. Enable \"FomoFaster Listener\" in settings\n4. Return to this app\n5. Test connection\n\nThe app will now capture FOMO notifications and send them to your backend.</string>
+    <string name="instructions">1. Enter your backend URL\n2. Tap \"Enable Notification Listener\" and enable it in settings\n3. Tap \"Enable Accessibility Service\" and enable it in settings\n4. Return to this app\n5. Test connection\n\nThe app will now capture FOMO notifications, extract contract addresses, and send them to your backend.</string>
+    <string name="accessibility_service_description">Allows FomoFaster to automatically capture contract addresses from FOMO notifications by interacting with the FOMO app.</string>
 </resources>

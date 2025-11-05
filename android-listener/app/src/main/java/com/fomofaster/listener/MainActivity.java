@@ -47,10 +47,13 @@ public class MainActivity extends AppCompatActivity {
     private EditText backendUrlInput;
     private Button saveButton;
     private Button enableListenerButton;
+    private Button enableAccessibilityButton;
     private Button testButton;
+    private Button testClipboardButton;
     private Button clearLogButton;
     private TextView statusText;
     private TextView instructionsText;
+    private TextView clipboardResultText;
     private LinearLayout logEntriesContainer;
 
     private OkHttpClient httpClient;
@@ -70,14 +73,20 @@ public class MainActivity extends AppCompatActivity {
         logEntries = new ArrayList<>();
         dateFormat = new SimpleDateFormat("MMM dd HH:mm:ss", Locale.US);
 
+        // Load saved log entries from persistent storage
+        loadSavedLogEntries();
+
         // Find views
         backendUrlInput = findViewById(R.id.backend_url_input);
         saveButton = findViewById(R.id.save_button);
         enableListenerButton = findViewById(R.id.enable_listener_button);
+        enableAccessibilityButton = findViewById(R.id.enable_accessibility_button);
         testButton = findViewById(R.id.test_button);
+        testClipboardButton = findViewById(R.id.test_clipboard_button);
         clearLogButton = findViewById(R.id.clear_log_button);
         statusText = findViewById(R.id.status_text);
         instructionsText = findViewById(R.id.instructions_text);
+        clipboardResultText = findViewById(R.id.clipboard_result_text);
         logEntriesContainer = findViewById(R.id.log_entries_container);
 
         // Load saved backend URL
@@ -86,7 +95,9 @@ public class MainActivity extends AppCompatActivity {
         // Set up button listeners
         saveButton.setOnClickListener(v -> saveBackendUrl());
         enableListenerButton.setOnClickListener(v -> openNotificationSettings());
+        enableAccessibilityButton.setOnClickListener(v -> openAccessibilitySettings());
         testButton.setOnClickListener(v -> testConnection());
+        testClipboardButton.setOnClickListener(v -> testClipboard());
         clearLogButton.setOnClickListener(v -> clearLog());
 
         // Set up broadcast receiver for log updates
@@ -154,6 +165,13 @@ public class MainActivity extends AppCompatActivity {
         Intent intent = new Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS);
         startActivity(intent);
         Toast.makeText(this, "Enable 'FomoFaster Listener' in the list", Toast.LENGTH_LONG).show();
+    }
+
+    private void openAccessibilitySettings() {
+        // Open accessibility settings
+        Intent intent = new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS);
+        startActivity(intent);
+        Toast.makeText(this, "Enable 'FomoFaster Listener' under Downloaded Services", Toast.LENGTH_LONG).show();
     }
 
     private void updateListenerStatus() {
@@ -259,17 +277,50 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    private void testClipboard() {
+        android.content.ClipboardManager clipboardManager =
+            (android.content.ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+
+        if (clipboardManager == null || !clipboardManager.hasPrimaryClip()) {
+            clipboardResultText.setText("Clipboard is empty");
+            Toast.makeText(this, "Clipboard is empty", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        android.content.ClipData clipData = clipboardManager.getPrimaryClip();
+        if (clipData == null || clipData.getItemCount() == 0) {
+            clipboardResultText.setText("Clipboard is empty");
+            Toast.makeText(this, "Clipboard is empty", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        android.content.ClipData.Item item = clipData.getItemAt(0);
+        CharSequence text = item.getText();
+
+        if (text != null && !text.toString().isEmpty()) {
+            String clipboardText = text.toString();
+            clipboardResultText.setText(clipboardText);
+            Toast.makeText(this, "Clipboard read successfully", Toast.LENGTH_SHORT).show();
+            Log.d(TAG, "Clipboard content: " + clipboardText);
+        } else {
+            clipboardResultText.setText("Clipboard contains no text");
+            Toast.makeText(this, "Clipboard contains no text", Toast.LENGTH_SHORT).show();
+        }
+    }
+
     @SuppressWarnings("UnspecifiedRegisterReceiverFlag")
     private void setupLogReceiver() {
         logReceiver = new BroadcastReceiver() {
             @Override
             public void onReceive(Context context, Intent intent) {
                 String status = intent.getStringExtra(FomoNotificationListener.EXTRA_STATUS);
-                String message = intent.getStringExtra(FomoNotificationListener.EXTRA_MESSAGE);
+                String notificationText = intent.getStringExtra(FomoNotificationListener.EXTRA_NOTIFICATION_TEXT);
+                String contractAddress = intent.getStringExtra(FomoNotificationListener.EXTRA_CONTRACT_ADDRESS);
+                String extractionStatus = intent.getStringExtra(FomoNotificationListener.EXTRA_EXTRACTION_STATUS);
                 String response = intent.getStringExtra(FomoNotificationListener.EXTRA_RESPONSE);
 
                 Log.d(TAG, "Received log broadcast: " + status);
-                addLogEntryToUI(status, message, response);
+                addLogEntryToUI(status, notificationText, contractAddress, extractionStatus, response);
             }
         };
 
@@ -283,15 +334,41 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    private void loadSavedLogEntries() {
+        try {
+            SharedPreferences prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+            String logsJson = prefs.getString("notification_logs", "[]");
+
+            org.json.JSONArray logsArray = new org.json.JSONArray(logsJson);
+
+            for (int i = 0; i < logsArray.length(); i++) {
+                org.json.JSONObject logJson = logsArray.getJSONObject(i);
+                NotificationLogEntry entry = NotificationLogEntry.fromJSON(logJson);
+                logEntries.add(entry);
+            }
+
+            Log.d(TAG, "Loaded " + logEntries.size() + " log entries from persistent storage");
+            refreshLogDisplay();
+
+        } catch (Exception e) {
+            Log.e(TAG, "Error loading saved log entries", e);
+        }
+    }
+
     private void clearLog() {
         logEntries.clear();
+
+        // Also clear from persistent storage
+        SharedPreferences prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+        prefs.edit().putString("notification_logs", "[]").apply();
+
         refreshLogDisplay();
         Toast.makeText(this, "Log cleared", Toast.LENGTH_SHORT).show();
     }
 
-    private void addLogEntryToUI(String status, String message, String response) {
+    private void addLogEntryToUI(String status, String notificationText, String contractAddress, String extractionStatus, String response) {
         String timestamp = dateFormat.format(new Date());
-        NotificationLogEntry entry = new NotificationLogEntry(timestamp, status, message, response);
+        NotificationLogEntry entry = new NotificationLogEntry(timestamp, status, notificationText, contractAddress, extractionStatus, response);
         logEntries.add(0, entry); // Add to beginning (most recent first)
 
         // Limit to 50 entries
@@ -351,15 +428,54 @@ public class MainActivity extends AppCompatActivity {
                 }
                 row.addView(statusView);
 
-                // Message
-                TextView messageView = new TextView(this);
-                messageView.setText(entry.getMessage());
-                messageView.setTextSize(11);
-                messageView.setWidth(dpToPx(300));
-                messageView.setPadding(0, 0, dpToPx(8), 0);
-                messageView.setMaxLines(2);
-                messageView.setEllipsize(android.text.TextUtils.TruncateAt.END);
-                row.addView(messageView);
+                // Notification Text
+                TextView notificationView = new TextView(this);
+                notificationView.setText(entry.getNotificationText());
+                notificationView.setTextSize(11);
+                notificationView.setWidth(dpToPx(250));
+                notificationView.setPadding(0, 0, dpToPx(8), 0);
+                notificationView.setMaxLines(2);
+                notificationView.setEllipsize(android.text.TextUtils.TruncateAt.END);
+                row.addView(notificationView);
+
+                // Contract Address
+                TextView contractView = new TextView(this);
+                String contractAddr = entry.getContractAddress();
+                if (contractAddr == null || contractAddr.isEmpty()) {
+                    contractView.setText("(none)");
+                    contractView.setTextColor(0xFF999999);
+                } else {
+                    contractView.setText(contractAddr);
+                }
+                contractView.setTextSize(11);
+                contractView.setWidth(dpToPx(150));
+                contractView.setPadding(0, 0, dpToPx(8), 0);
+                contractView.setMaxLines(1);
+                contractView.setEllipsize(android.text.TextUtils.TruncateAt.MIDDLE);
+                row.addView(contractView);
+
+                // Extraction Status
+                TextView extractionView = new TextView(this);
+                String extractStatus = entry.getExtractionStatus();
+                if (extractStatus == null || extractStatus.isEmpty()) {
+                    extractionView.setText("-");
+                } else {
+                    extractionView.setText(extractStatus);
+                    // Color code extraction status
+                    if (extractStatus.contains("Success")) {
+                        extractionView.setTextColor(0xFF4CAF50); // Green
+                    } else if (extractStatus.contains("Error")) {
+                        extractionView.setTextColor(0xFFF44336); // Red
+                    } else if (extractStatus.contains("Warning")) {
+                        extractionView.setTextColor(0xFFFF9800); // Orange
+                    }
+                }
+                extractionView.setTextSize(11);
+                extractionView.setWidth(dpToPx(180));
+                extractionView.setPadding(0, 0, dpToPx(8), 0);
+                extractionView.setMaxLines(2);
+                extractionView.setEllipsize(android.text.TextUtils.TruncateAt.END);
+                row.addView(extractionView);
 
                 // Response
                 TextView responseView = new TextView(this);

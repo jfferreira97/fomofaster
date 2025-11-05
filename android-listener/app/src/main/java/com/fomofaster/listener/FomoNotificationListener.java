@@ -1,13 +1,18 @@
 package com.fomofaster.listener;
 
+import android.annotation.SuppressLint;
 import android.app.Notification;
 import android.app.PendingIntent;
+import android.content.BroadcastReceiver;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.service.notification.NotificationListenerService;
 import android.service.notification.StatusBarNotification;
 import android.util.Log;
@@ -33,13 +38,31 @@ public class FomoNotificationListener extends NotificationListenerService {
 
     public static final String LOG_BROADCAST_ACTION = "com.fomofaster.listener.LOG_ENTRY";
     public static final String EXTRA_STATUS = "status";
-    public static final String EXTRA_MESSAGE = "message";
+    public static final String EXTRA_NOTIFICATION_TEXT = "notification_text";
+    public static final String EXTRA_CONTRACT_ADDRESS = "contract_address";
+    public static final String EXTRA_EXTRACTION_STATUS = "extraction_status";
     public static final String EXTRA_RESPONSE = "response";
+
+    public static final String ACTION_COPY_COMPLETED = "com.fomofaster.listener.COPY_COMPLETED";
+    public static final String ACTION_COPY_FAILED = "com.fomofaster.listener.COPY_FAILED";
+
+    private static final int WAIT_FOR_APP_OPEN_MS = 1500;  // 1.5 seconds
+    private static final int TIMEOUT_MS = 2000;  // 2 seconds total timeout
 
     private OkHttpClient httpClient;
     private ClipboardManager clipboardManager;
     private String backendUrl;
+    private Handler handler;
+    private BroadcastReceiver copyResultReceiver;
 
+    // Track current notification being processed
+    private String currentTitle = "";
+    private String currentText = "";
+    private long currentTimestamp = 0;
+    private String currentExtractionStatus = "";
+    private Runnable timeoutRunnable = null;
+
+    @SuppressLint("UnspecifiedRegisterReceiverFlag")
     @Override
     public void onCreate() {
         super.onCreate();
@@ -55,8 +78,31 @@ public class FomoNotificationListener extends NotificationListenerService {
         // Get clipboard manager
         clipboardManager = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
 
+        // Initialize handler for delays
+        handler = new Handler(Looper.getMainLooper());
+
         // Load backend URL from preferences
         loadBackendUrl();
+
+        // Register receiver for copy completion/failure events
+        copyResultReceiver = new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context context, Intent intent) {
+                String action = intent.getAction();
+                if (ACTION_COPY_COMPLETED.equals(action)) {
+                    Log.d(TAG, "Copy button click completed");
+                    onCopyCompleted();
+                } else if (ACTION_COPY_FAILED.equals(action)) {
+                    Log.e(TAG, "Copy button click failed");
+                    onCopyFailed();
+                }
+            }
+        };
+
+        IntentFilter filter = new IntentFilter();
+        filter.addAction(ACTION_COPY_COMPLETED);
+        filter.addAction(ACTION_COPY_FAILED);
+        registerReceiver(copyResultReceiver, filter);
     }
 
     private void loadBackendUrl() {
@@ -88,61 +134,89 @@ public class FomoNotificationListener extends NotificationListenerService {
         Log.d(TAG, "Text: " + text);
         Log.d(TAG, "Timestamp: " + timestamp);
 
-        // Try to extract contract address by triggering clipboard action
-        extractContractAddress(notification, title, text, timestamp);
+        // Store current notification data
+        currentTitle = title;
+        currentText = text;
+        currentTimestamp = timestamp;
+        currentExtractionStatus = "";
+
+        // Start the automation flow
+        startContractAddressExtraction(notification);
     }
 
-    private void extractContractAddress(Notification notification, String title, String text, long timestamp) {
-        // Look for notification actions (clipboard button)
-        Notification.Action[] actions = notification.actions;
-
-        String contractAddress = "";
-
-        if (actions != null && actions.length > 0) {
-            Log.d(TAG, "Found " + actions.length + " notification action(s)");
-
-            // Try to find and trigger clipboard action
-            for (Notification.Action action : actions) {
-                String actionTitle = action.title != null ? action.title.toString() : "";
-                Log.d(TAG, "Action found: " + actionTitle);
-
-                // The clipboard button might not have a title, or might be labeled
-                // We'll try the first action, which is typically the clipboard in FOMO
-                if (action.actionIntent != null) {
-                    try {
-                        // Clear clipboard first to detect new content
-                        clearClipboard();
-
-                        // Trigger the action
-                        action.actionIntent.send();
-                        Log.d(TAG, "Action triggered, waiting for clipboard...");
-
-                        // Wait briefly for clipboard to update (100ms should be enough)
-                        try {
-                            Thread.sleep(100);
-                        } catch (InterruptedException e) {
-                            Log.e(TAG, "Sleep interrupted", e);
-                        }
-
-                        // Read clipboard content
-                        contractAddress = readClipboard();
-                        Log.d(TAG, "Clipboard content: " + contractAddress);
-
-                        // If we got a contract address, break
-                        if (!contractAddress.isEmpty() && contractAddress.startsWith("0x")) {
-                            break;
-                        }
-                    } catch (PendingIntent.CanceledException e) {
-                        Log.e(TAG, "Failed to trigger notification action", e);
-                    }
-                }
-            }
-        } else {
-            Log.d(TAG, "No notification actions found");
+    private void startContractAddressExtraction(Notification notification) {
+        // Cancel any pending timeout
+        if (timeoutRunnable != null) {
+            handler.removeCallbacks(timeoutRunnable);
         }
 
-        // Send data to backend
-        sendToBackend(title, text, contractAddress, timestamp);
+        // Clear clipboard to detect new content
+        clearClipboard();
+
+        // Click the notification to open FOMO app
+        PendingIntent contentIntent = notification.contentIntent;
+        if (contentIntent != null) {
+            try {
+                Log.d(TAG, "Clicking notification to open FOMO app...");
+                contentIntent.send();
+
+                // Wait 1.5 seconds for app to open, then trigger copy button click
+                handler.postDelayed(() -> {
+                    Log.d(TAG, "Requesting copy button click via accessibility service...");
+                    FomoAccessibilityService.requestCopyButtonClick(this);
+                }, WAIT_FOR_APP_OPEN_MS);
+
+                // Set timeout to send request without contract address if needed
+                timeoutRunnable = () -> {
+                    Log.w(TAG, "Timeout reached, sending request without contract address");
+                    onCopyFailed();
+                };
+                handler.postDelayed(timeoutRunnable, TIMEOUT_MS);
+
+            } catch (PendingIntent.CanceledException e) {
+                Log.e(TAG, "Failed to click notification", e);
+                currentExtractionStatus = "Error: Failed to open notification";
+                sendToBackend(currentTitle, currentText, "", currentTimestamp);
+            }
+        } else {
+            Log.e(TAG, "No content intent in notification");
+            currentExtractionStatus = "Error: No content intent in notification";
+            sendToBackend(currentTitle, currentText, "", currentTimestamp);
+        }
+    }
+
+    private void onCopyCompleted() {
+        // Cancel timeout
+        if (timeoutRunnable != null) {
+            handler.removeCallbacks(timeoutRunnable);
+            timeoutRunnable = null;
+        }
+
+        // Read clipboard
+        String contractAddress = readClipboard();
+        Log.d(TAG, "Contract address from clipboard: " + contractAddress);
+
+        if (contractAddress.isEmpty()) {
+            currentExtractionStatus = "Warning: Clipboard was empty";
+        } else {
+            currentExtractionStatus = "Success";
+        }
+
+        // Send to backend
+        sendToBackend(currentTitle, currentText, contractAddress, currentTimestamp);
+    }
+
+    private void onCopyFailed() {
+        // Cancel timeout
+        if (timeoutRunnable != null) {
+            handler.removeCallbacks(timeoutRunnable);
+            timeoutRunnable = null;
+        }
+
+        currentExtractionStatus = "Error: Copy button click failed or timed out";
+
+        // Send to backend without contract address
+        sendToBackend(currentTitle, currentText, "", currentTimestamp);
     }
 
     private void clearClipboard() {
@@ -202,7 +276,7 @@ public class FomoNotificationListener extends NotificationListenerService {
                 @Override
                 public void onFailure(Call call, IOException e) {
                     Log.e(TAG, "Failed to send notification to backend", e);
-                    broadcastLogEntry("FAILED", message, "Error: " + e.getMessage());
+                    broadcastLogEntry("FAILED", message, contractAddress, currentExtractionStatus, "Error: " + e.getMessage());
                 }
 
                 @Override
@@ -214,10 +288,10 @@ public class FomoNotificationListener extends NotificationListenerService {
 
                     if (response.isSuccessful()) {
                         Log.d(TAG, "Successfully sent to backend: " + response.code());
-                        broadcastLogEntry("SUCCESS (" + response.code() + ")", message, responseBody);
+                        broadcastLogEntry("SUCCESS (" + response.code() + ")", message, contractAddress, currentExtractionStatus, responseBody);
                     } else {
                         Log.e(TAG, "Backend responded with error: " + response.code());
-                        broadcastLogEntry("ERROR (" + response.code() + ")", message, responseBody);
+                        broadcastLogEntry("ERROR (" + response.code() + ")", message, contractAddress, currentExtractionStatus, responseBody);
                     }
                     response.close();
                 }
@@ -225,17 +299,58 @@ public class FomoNotificationListener extends NotificationListenerService {
 
         } catch (Exception e) {
             Log.e(TAG, "Error sending to backend", e);
-            broadcastLogEntry("EXCEPTION", title + " " + text, "Error: " + e.getMessage());
+            broadcastLogEntry("EXCEPTION", title + " " + text, contractAddress, currentExtractionStatus, "Error: " + e.getMessage());
         }
     }
 
-    private void broadcastLogEntry(String status, String message, String response) {
+    private void broadcastLogEntry(String status, String notificationText, String contractAddress, String extractionStatus, String response) {
+        // Save to persistent storage
+        saveLogEntryToPersistentStorage(status, notificationText, contractAddress, extractionStatus, response);
+
+        // Send broadcast for real-time UI updates (if MainActivity is visible)
         Intent intent = new Intent(LOG_BROADCAST_ACTION);
         intent.putExtra(EXTRA_STATUS, status);
-        intent.putExtra(EXTRA_MESSAGE, message);
+        intent.putExtra(EXTRA_NOTIFICATION_TEXT, notificationText);
+        intent.putExtra(EXTRA_CONTRACT_ADDRESS, contractAddress);
+        intent.putExtra(EXTRA_EXTRACTION_STATUS, extractionStatus);
         intent.putExtra(EXTRA_RESPONSE, response);
         sendBroadcast(intent);
         Log.d(TAG, "Broadcast log entry: " + status);
+    }
+
+    private void saveLogEntryToPersistentStorage(String status, String notificationText, String contractAddress, String extractionStatus, String response) {
+        try {
+            SharedPreferences prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+            String logsJson = prefs.getString("notification_logs", "[]");
+
+            org.json.JSONArray logsArray = new org.json.JSONArray(logsJson);
+
+            // Create new log entry JSON
+            org.json.JSONObject logEntry = new org.json.JSONObject();
+            logEntry.put("timestamp", new java.text.SimpleDateFormat("MMM dd HH:mm:ss", java.util.Locale.US).format(new java.util.Date()));
+            logEntry.put("status", status);
+            logEntry.put("notificationText", notificationText);
+            logEntry.put("contractAddress", contractAddress);
+            logEntry.put("extractionStatus", extractionStatus);
+            logEntry.put("response", response);
+
+            // Add to beginning (most recent first)
+            org.json.JSONArray newLogsArray = new org.json.JSONArray();
+            newLogsArray.put(logEntry);
+
+            // Copy existing entries (limit to 50)
+            int limit = Math.min(logsArray.length(), 49);
+            for (int i = 0; i < limit; i++) {
+                newLogsArray.put(logsArray.get(i));
+            }
+
+            // Save back to SharedPreferences
+            prefs.edit().putString("notification_logs", newLogsArray.toString()).apply();
+            Log.d(TAG, "Saved log entry to persistent storage");
+
+        } catch (Exception e) {
+            Log.e(TAG, "Error saving log entry to persistent storage", e);
+        }
     }
 
     @Override
@@ -246,6 +361,12 @@ public class FomoNotificationListener extends NotificationListenerService {
     @Override
     public void onDestroy() {
         super.onDestroy();
+        if (copyResultReceiver != null) {
+            unregisterReceiver(copyResultReceiver);
+        }
+        if (timeoutRunnable != null) {
+            handler.removeCallbacks(timeoutRunnable);
+        }
         Log.d(TAG, "FomoNotificationListener service destroyed");
     }
 }
