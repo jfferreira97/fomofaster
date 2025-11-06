@@ -7,17 +7,12 @@ public class NotificationLogEntry {
     private final String timestamp;
     private final String status;
     private final String notificationText;
-    private final String contractAddress;
-    private final String extractionStatus;
     private final String response;
 
-    public NotificationLogEntry(String timestamp, String status, String notificationText,
-                                String contractAddress, String extractionStatus, String response) {
+    public NotificationLogEntry(String timestamp, String status, String notificationText, String response) {
         this.timestamp = timestamp;
         this.status = status;
         this.notificationText = notificationText;
-        this.contractAddress = contractAddress;
-        this.extractionStatus = extractionStatus;
         this.response = response;
     }
 
@@ -33,14 +28,6 @@ public class NotificationLogEntry {
         return notificationText;
     }
 
-    public String getContractAddress() {
-        return contractAddress;
-    }
-
-    public String getExtractionStatus() {
-        return extractionStatus;
-    }
-
     public String getResponse() {
         return response;
     }
@@ -51,8 +38,6 @@ public class NotificationLogEntry {
         json.put("timestamp", timestamp);
         json.put("status", status);
         json.put("notificationText", notificationText);
-        json.put("contractAddress", contractAddress);
-        json.put("extractionStatus", extractionStatus);
         json.put("response", response);
         return json;
     }
@@ -63,8 +48,6 @@ public class NotificationLogEntry {
             json.getString("timestamp"),
             json.getString("status"),
             json.getString("notificationText"),
-            json.getString("contractAddress"),
-            json.getString("extractionStatus"),
             json.getString("response")
         );
     }

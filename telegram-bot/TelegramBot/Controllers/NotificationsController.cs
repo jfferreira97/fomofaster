@@ -20,15 +20,14 @@ public class NotificationsController : ControllerBase
     }
 
     [HttpPost]
-    public async Task<IActionResult> ReceiveNotification([FromBody] NotificationRequest request)
+    public async Task<IActionResult> ReceiveNotification([FromBody] NotificationRequest noti)
     {
         try
         {
             _logger.LogInformation("📱 FOMO NOTIFICATION RECEIVED");
-            _logger.LogInformation("Message: {Message}", request.Message);
-            _logger.LogInformation("Contract: {Contract}", request.ContractAddress);
+            _logger.LogInformation("Message: {Message}", noti.Message);
 
-            await _telegramService.SendNotificationAsync(request);
+            await _telegramService.SendNotificationAsync(noti);
 
             return Ok(new
             {

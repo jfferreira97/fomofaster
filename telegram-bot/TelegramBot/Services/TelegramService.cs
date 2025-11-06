@@ -49,10 +49,12 @@ public class TelegramService : ITelegramService
 
         try
         {
+            var contractAddress = "placeholder"; // To be fetched thru solana api
+
             // Format message with contract address link
             var message = $@"{notification.Message}
 
-📝 Contract: `{notification.ContractAddress}`
+📝 Contract: `{contractAddress}`
 ";
 
 //🔗 [DEXScreener](https://dexscreener.com/solana/{notification.ContractAddress})

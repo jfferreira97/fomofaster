@@ -75,15 +75,6 @@
             android:textSize="16sp"
             android:layout_marginBottom="12dp" />
 
-        <!-- Enable Accessibility Service Button -->
-        <Button
-            android:id="@+id/enable_accessibility_button"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="@string/enable_accessibility_button"
-            android:textSize="16sp"
-            android:layout_marginBottom="16dp" />
-
         <!-- Status -->
         <TextView
             android:layout_width="match_parent"
@@ -118,26 +109,6 @@
             android:text="@string/test_button"
             android:textSize="16sp"
             android:layout_marginBottom="16dp" />
-
-        <!-- Test Clipboard Button -->
-        <Button
-            android:id="@+id/test_clipboard_button"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Test Clipboard"
-            android:textSize="16sp"
-            android:layout_marginBottom="8dp" />
-
-        <!-- Clipboard Result Text -->
-        <TextView
-            android:id="@+id/clipboard_result_text"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Clipboard content will appear here..."
-            android:textSize="14sp"
-            android:padding="12dp"
-            android:background="#F5F5F5"
-            android:layout_marginBottom="24dp" />
 
         <!-- Divider -->
         <View
@@ -200,7 +171,7 @@
                         android:paddingEnd="8dp" />
 
                     <TextView
-                        android:layout_width="250dp"
+                        android:layout_width="400dp"
                         android:layout_height="wrap_content"
                         android:text="Notification Text"
                         android:textStyle="bold"
@@ -208,23 +179,7 @@
                         android:paddingEnd="8dp" />
 
                     <TextView
-                        android:layout_width="150dp"
-                        android:layout_height="wrap_content"
-                        android:text="Contract Address"
-                        android:textStyle="bold"
-                        android:textSize="12sp"
-                        android:paddingEnd="8dp" />
-
-                    <TextView
-                        android:layout_width="180dp"
-                        android:layout_height="wrap_content"
-                        android:text="Extraction Status"
-                        android:textStyle="bold"
-                        android:textSize="12sp"
-                        android:paddingEnd="8dp" />
-
-                    <TextView
-                        android:layout_width="200dp"
+                        android:layout_width="300dp"
                         android:layout_height="wrap_content"
                         android:text="HTTP Response"
                         android:textStyle="bold"
