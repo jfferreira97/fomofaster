@@ -39,7 +39,7 @@ public class TelegramService : ITelegramService
         return _botClient != null && _settings.ChannelId != 0;
     }
 
-    public async Task SendNotificationAsync(NotificationRequest notification)
+    public async Task SendNotificationAsync(NotificationRequest notification, string? contractAddress = null)
     {
         if (_botClient == null || _settings.ChannelId == 0)
         {
@@ -49,22 +49,30 @@ public class TelegramService : ITelegramService
 
         try
         {
-            var contractAddress = "placeholder"; // To be fetched thru solana api
+            string message;
 
-            // Format message with contract address link
-            var message = $@"{notification.Message}
+            if (!string.IsNullOrEmpty(contractAddress))
+            {
+                // Format message with contract address and links
+                message = $@"{notification.Message}
 
 📝 Contract: `{contractAddress}`
-";
+🔗 [DEXScreener](https://dexscreener.com/solana/{contractAddress})
+🔗 [Buy on Jupiter](https://jup.ag/swap/SOL-{contractAddress})";
+            }
+            else
+            {
+                // Send without contract address if not found
+                message = $@"{notification.Message}
 
-//🔗 [DEXScreener](https://dexscreener.com/solana/{notification.ContractAddress})
-//🔗 [Buy on Jupiter](https://jup.ag/swap/SOL-{notification.ContractAddress})";
+⚠️ Contract address not found";
+            }
 
             await _botClient.SendTextMessageAsync(
                 chatId: _settings.ChannelId,
                 text: message,
                 parseMode: ParseMode.Markdown,
-                disableWebPagePreview: true
+                disableWebPagePreview: false // Enable preview for DEXScreener/Jupiter links
             );
 
             _logger.LogInformation("✅ Sent to Telegram: {Message}", notification.Message);

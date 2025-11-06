@@ -4,6 +4,6 @@ namespace TelegramBot.Services;
 
 public interface ITelegramService
 {
-    Task SendNotificationAsync(NotificationRequest notification);
+    Task SendNotificationAsync(NotificationRequest notification, string? contractAddress = null);
     bool IsConfigured();
 }

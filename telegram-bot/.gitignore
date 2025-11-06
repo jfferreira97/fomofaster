@@ -37,9 +37,11 @@ bld/
 *.snupkg
 **/packages/*
 
-# Secrets
+# Secrets - keep base appsettings.json, ignore environment-specific ones
 appsettings.Development.json
 appsettings.Production.json
+appsettings.*.json
+!appsettings.json
 *.env
 
 # OS
