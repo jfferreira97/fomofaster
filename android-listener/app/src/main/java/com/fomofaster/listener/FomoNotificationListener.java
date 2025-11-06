@@ -151,7 +151,7 @@ public class FomoNotificationListener extends NotificationListenerService {
         }
 
         // Clear clipboard to detect new content
-        clearClipboard();
+        //clearClipboard();
 
         // Click the notification to open FOMO app
         PendingIntent contentIntent = notification.contentIntent;
@@ -219,12 +219,12 @@ public class FomoNotificationListener extends NotificationListenerService {
         sendToBackend(currentTitle, currentText, "", currentTimestamp);
     }
 
-    private void clearClipboard() {
-        if (clipboardManager != null) {
-            ClipData clip = ClipData.newPlainText("", "");
-            clipboardManager.setPrimaryClip(clip);
-        }
-    }
+//    private void clearClipboard() {
+//        if (clipboardManager != null) {
+//            ClipData clip = ClipData.newPlainText("", "");
+//            clipboardManager.setPrimaryClip(clip);
+//        }
+//    }
 
     private String readClipboard() {
         if (clipboardManager == null || !clipboardManager.hasPrimaryClip()) {

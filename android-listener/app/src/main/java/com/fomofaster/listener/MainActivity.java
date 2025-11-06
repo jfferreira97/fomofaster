@@ -73,9 +73,6 @@ public class MainActivity extends AppCompatActivity {
         logEntries = new ArrayList<>();
         dateFormat = new SimpleDateFormat("MMM dd HH:mm:ss", Locale.US);
 
-        // Load saved log entries from persistent storage
-        loadSavedLogEntries();
-
         // Find views
         backendUrlInput = findViewById(R.id.backend_url_input);
         saveButton = findViewById(R.id.save_button);
@@ -91,6 +88,9 @@ public class MainActivity extends AppCompatActivity {
 
         // Load saved backend URL
         loadBackendUrl();
+
+        // Load saved log entries from persistent storage (after views are initialized)
+        loadSavedLogEntries();
 
         // Set up button listeners
         saveButton.setOnClickListener(v -> saveBackendUrl());

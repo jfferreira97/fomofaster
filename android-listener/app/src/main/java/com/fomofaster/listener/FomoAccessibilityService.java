@@ -94,7 +94,7 @@ public class FomoAccessibilityService extends AccessibilityService {
                         super.onCompleted(gestureDescription);
                         Log.d(TAG, "Click gesture completed successfully");
 
-                        // Notify that click was completed so clipboard can be read
+                        // Notify completion to read clipboard
                         Intent intent = new Intent(FomoNotificationListener.ACTION_COPY_COMPLETED);
                         sendBroadcast(intent);
                     }
@@ -137,6 +137,8 @@ public class FomoAccessibilityService extends AccessibilityService {
     // Static method to request a copy button click from anywhere in the app
     public static void requestCopyButtonClick(Context context) {
         Intent intent = new Intent(ACTION_CLICK_COPY_BUTTON);
+        intent.setPackage(context.getPackageName());  // Make it explicit for Android 8.0+
         context.sendBroadcast(intent);
+        Log.d(TAG, "Broadcast sent: " + ACTION_CLICK_COPY_BUTTON);
     }
 }
