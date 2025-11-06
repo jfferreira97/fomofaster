@@ -1,3 +1,5 @@
+using Microsoft.EntityFrameworkCore;
+using TelegramBot.Data;
 using TelegramBot.Models;
 using TelegramBot.Services;
 
@@ -7,6 +9,10 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+
+// Add database
+builder.Services.AddDbContext<AppDbContext>(options =>
+    options.UseSqlite("Data Source=fomofaster.db"));
 
 // Configure CORS for development
 builder.Services.AddCors(options =>
@@ -21,8 +27,10 @@ builder.Services.AddCors(options =>
 });
 
 // Register services
+builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddSingleton<ITelegramService, TelegramService>();
 builder.Services.AddSingleton<ISolanaService, SolanaService>();
+builder.Services.AddHostedService<TelegramBotPollingService>(); // Background polling service
 builder.Services.AddHttpClient(); // For Helius API calls
 
 // Configure settings from appsettings.json or environment variables
@@ -32,6 +40,13 @@ builder.Services.Configure<HeliusSettings>(
     builder.Configuration.GetSection("Helius"));
 
 var app = builder.Build();
+
+// Create database if it doesn't exist
+using (var scope = app.Services.CreateScope())
+{
+    var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    dbContext.Database.EnsureCreated();
+}
 
 // Configure the HTTP request pipeline
 if (app.Environment.IsDevelopment())

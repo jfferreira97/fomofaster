@@ -44,6 +44,11 @@ appsettings.*.json
 !appsettings.json
 *.env
 
+# Database
+*.db
+*.db-shm
+*.db-wal
+
 # OS
 .DS_Store
 Thumbs.db

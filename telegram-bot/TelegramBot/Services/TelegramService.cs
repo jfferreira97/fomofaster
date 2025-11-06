@@ -9,11 +9,16 @@ public class TelegramService : ITelegramService
 {
     private readonly TelegramSettings _settings;
     private readonly TelegramBotClient? _botClient;
+    private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<TelegramService> _logger;
 
-    public TelegramService(IOptions<TelegramSettings> settings, ILogger<TelegramService> logger)
+    public TelegramService(
+        IOptions<TelegramSettings> settings,
+        IServiceProvider serviceProvider,
+        ILogger<TelegramService> logger)
     {
         _settings = settings.Value;
+        _serviceProvider = serviceProvider;
         _logger = logger;
 
         if (!string.IsNullOrEmpty(_settings.BotToken))
@@ -36,51 +41,69 @@ public class TelegramService : ITelegramService
 
     public bool IsConfigured()
     {
-        return _botClient != null && _settings.ChannelId != 0;
+        return _botClient != null;
     }
 
-    public async Task SendNotificationAsync(NotificationRequest notification, string? contractAddress = null)
+    public async Task SendNotificationToAllUsersAsync(NotificationRequest notification, string? contractAddress = null)
     {
-        if (_botClient == null || _settings.ChannelId == 0)
+        if (_botClient == null)
         {
-            _logger.LogWarning("Telegram not configured, skipping message send");
+            _logger.LogWarning("Telegram bot not configured, skipping message send");
             return;
         }
 
-        try
-        {
-            string message;
+        using var scope = _serviceProvider.CreateScope();
+        var userService = scope.ServiceProvider.GetRequiredService<IUserService>();
 
-            if (!string.IsNullOrEmpty(contractAddress))
-            {
-                // Format message with contract address and links
-                message = $@"{notification.Message}
+        var users = await userService.GetAllActiveUsersAsync();
+
+        if (users.Count == 0)
+        {
+            _logger.LogWarning("No active users to send notification to");
+            return;
+        }
+
+        string message;
+        if (!string.IsNullOrEmpty(contractAddress))
+        {
+            message = $@"{notification.Message}
 
 📝 Contract: `{contractAddress}`
 🔗 [DEXScreener](https://dexscreener.com/solana/{contractAddress})
 🔗 [Buy on Jupiter](https://jup.ag/swap/SOL-{contractAddress})";
-            }
-            else
-            {
-                // Send without contract address if not found
-                message = $@"{notification.Message}
+        }
+        else
+        {
+            message = $@"{notification.Message}
 
 ⚠️ Contract address not found";
-            }
-
-            await _botClient.SendTextMessageAsync(
-                chatId: _settings.ChannelId,
-                text: message,
-                parseMode: ParseMode.Markdown,
-                disableWebPagePreview: false // Enable preview for DEXScreener/Jupiter links
-            );
-
-            _logger.LogInformation("✅ Sent to Telegram: {Message}", notification.Message);
         }
-        catch (Exception ex)
+
+        int successCount = 0;
+        int failCount = 0;
+
+        foreach (var user in users)
         {
-            _logger.LogError(ex, "❌ Failed to send message to Telegram");
+            try
+            {
+                await _botClient.SendTextMessageAsync(
+                    chatId: user.ChatId,
+                    text: message,
+                    parseMode: ParseMode.Markdown,
+                    disableWebPagePreview: false
+                );
+
+                successCount++;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to send message to user {ChatId}", user.ChatId);
+                failCount++;
+            }
         }
+
+        _logger.LogInformation("✅ Notification sent to {Success}/{Total} users ({Failed} failed)",
+            successCount, users.Count, failCount);
     }
 
     public async Task SendTestMessageAsync(long chatId, string message)
