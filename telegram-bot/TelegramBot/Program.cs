@@ -55,4 +55,30 @@ app.MapGet("/health", (ITelegramService telegramService) =>
     };
 });
 
+app.MapGet("/bot-info", async (ITelegramService telegramService) =>
+{
+    try
+    {
+        var updates = await telegramService.GetUpdatesAsync();
+        return Results.Ok(new { status = "success", updates });
+    }
+    catch (Exception ex)
+    {
+        return Results.BadRequest(new { status = "error", message = ex.Message });
+    }
+});
+
+app.MapPost("/test-bot", async (ITelegramService telegramService, long chatId) =>
+{
+    try
+    {
+        await telegramService.SendTestMessageAsync(chatId, "🎉 Bot is working! This is a test message from FOMOFAST.");
+        return Results.Ok(new { status = "success", message = "Test message sent" });
+    }
+    catch (Exception ex)
+    {
+        return Results.BadRequest(new { status = "error", message = ex.Message });
+    }
+});
+
 app.Run();

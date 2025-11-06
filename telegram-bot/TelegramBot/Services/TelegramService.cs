@@ -82,4 +82,45 @@ public class TelegramService : ITelegramService
             _logger.LogError(ex, "❌ Failed to send message to Telegram");
         }
     }
+
+    public async Task SendTestMessageAsync(long chatId, string message)
+    {
+        if (_botClient == null)
+        {
+            throw new InvalidOperationException("Telegram bot not configured");
+        }
+
+        await _botClient.SendTextMessageAsync(
+            chatId: chatId,
+            text: message,
+            parseMode: ParseMode.Markdown
+        );
+
+        _logger.LogInformation("✅ Test message sent to chat: {ChatId}", chatId);
+    }
+
+    public async Task<object> GetUpdatesAsync()
+    {
+        if (_botClient == null)
+        {
+            throw new InvalidOperationException("Telegram bot not configured");
+        }
+
+        var updates = await _botClient.GetUpdatesAsync();
+        return updates.Select(u => new
+        {
+            updateId = u.Id,
+            message = u.Message != null ? new
+            {
+                chatId = u.Message.Chat.Id,
+                text = u.Message.Text,
+                from = u.Message.From != null ? new
+                {
+                    id = u.Message.From.Id,
+                    username = u.Message.From.Username,
+                    firstName = u.Message.From.FirstName
+                } : null
+            } : null
+        }).ToList();
+    }
 }
