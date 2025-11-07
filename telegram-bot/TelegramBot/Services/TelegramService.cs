@@ -69,14 +69,11 @@ public class TelegramService : ITelegramService
             message = $@"{notification.Message}
 
 📝 Contract: `{contractAddress}`
-🔗 [DEXScreener](https://dexscreener.com/solana/{contractAddress})
-🔗 [Buy on Jupiter](https://jup.ag/swap/SOL-{contractAddress})";
+🔗 [DEXScreener](https://dexscreener.com/solana/{contractAddress})";
         }
         else
         {
-            message = $@"{notification.Message}
-
-⚠️ Contract address not found";
+            message = $@"{notification.Message}";
         }
 
         int successCount = 0;
@@ -90,7 +87,7 @@ public class TelegramService : ITelegramService
                     chatId: user.ChatId,
                     text: message,
                     parseMode: ParseMode.Markdown,
-                    disableWebPagePreview: false
+                    disableWebPagePreview: true
                 );
 
                 successCount++;
