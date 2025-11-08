@@ -28,6 +28,7 @@ builder.Services.AddCors(options =>
 
 // Register services
 builder.Services.AddScoped<IUserService, UserService>();
+builder.Services.AddScoped<ITraderService, TraderService>();
 builder.Services.AddSingleton<ITelegramService, TelegramService>();
 builder.Services.AddSingleton<ISolanaService, SolanaService>();
 builder.Services.AddHostedService<TelegramBotPollingService>(); // Background polling service
