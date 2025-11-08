@@ -34,6 +34,17 @@ public class NotificationsController : ControllerBase
             _logger.LogInformation("📱 FOMO NOTIFICATION RECEIVED");
             _logger.LogInformation("Message: {Message}", noti.Message);
 
+            // Validate message is not empty
+            if (string.IsNullOrWhiteSpace(noti.Message))
+            {
+                _logger.LogWarning("Received empty notification message, skipping");
+                return BadRequest(new
+                {
+                    status = "error",
+                    message = "Notification message cannot be empty"
+                });
+            }
+
             var ticker = ExtractTicker(noti.Message);
             var trader = ExtractTrader(noti.Message);
             string? contractAddress = null;

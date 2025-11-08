@@ -5,6 +5,15 @@ using TelegramBot.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Configure logging with timestamps
+builder.Logging.ClearProviders();
+builder.Logging.AddConsole();
+builder.Logging.AddSimpleConsole(options =>
+{
+    options.TimestampFormat = "[yyyy-MM-dd HH:mm:ss] ";
+    options.SingleLine = true;
+});
+
 // Add services to the container
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
