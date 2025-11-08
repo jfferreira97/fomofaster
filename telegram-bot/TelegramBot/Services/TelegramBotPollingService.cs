@@ -158,8 +158,8 @@ Stay ahead of the curve! 🚀",
 /help - Show this help message
 /list - View all available traders
 /mytraders - View traders you're following
-/follow <ids/handles> - Follow traders (e.g., `/follow 1,2,3` or `/follow @trader1,@trader2`)
-/unfollow <ids/handles> - Unfollow traders (e.g., `/unfollow 1,@trader2`)
+/follow <ids/handles> - Follow traders (e.g., /follow 1,2,3 or /follow @trader1,@trader2)
+/unfollow <ids/handles> - Unfollow traders (e.g., /unfollow 1,@trader2)
 
 You'll only receive notifications from traders you follow!",
                     parseMode: ParseMode.Markdown
@@ -196,19 +196,18 @@ You'll only receive notifications from traders you follow!",
                 {
                     var isFollowing = await traderService.IsFollowingAsync(user.Id, trader.Id);
                     var status = isFollowing ? "✅" : "❌";
-                    traderLines.Add($"{status} **{trader.Id}** - @{trader.Handle}");
+                    traderLines.Add($"{trader.Id} - {trader.Handle} {status}");
                 }
 
-                var listMessage = $@"📊 **All Traders** ({allTraders.Count} total)
+                var listMessage = $@"📊 All Traders ({allTraders.Count} total)
 
 {string.Join("\n", traderLines)}
 
-Use `/follow 1,2,3` or `/follow @trader1,@trader2` to follow traders.";
+Use /follow 1,2,3 or /follow @trader1,@trader2 to follow traders.";
 
                 await _botClient.SendTextMessageAsync(
                     chatId: chatId,
-                    text: listMessage,
-                    parseMode: ParseMode.Markdown
+                    text: listMessage
                 );
                 break;
 
@@ -231,7 +230,7 @@ Use `/follow 1,2,3` or `/follow @trader1,@trader2` to follow traders.";
                 {
                     await _botClient.SendTextMessageAsync(
                         chatId: chatId,
-                        text: "📭 You're not following any traders yet.\n\nUse `/list` to see all available traders, then `/follow` to start following them!",
+                        text: "📭 You're not following any traders yet.\n\nUse /list to see all available traders, then /follow to start following them!",
                         parseMode: ParseMode.Markdown
                     );
                     break;
@@ -240,19 +239,18 @@ Use `/follow 1,2,3` or `/follow @trader1,@trader2` to follow traders.";
                 var myTraderLines = new List<string>();
                 foreach (var trader in followedTraders)
                 {
-                    myTraderLines.Add($"✅ **{trader.Id}** - @{trader.Handle}");
+                    myTraderLines.Add($"{trader.Id} - {trader.Handle} ✅");
                 }
 
-                var myTradersMessage = $@"📊 **Your Followed Traders** ({followedTraders.Count} total)
+                var myTradersMessage = $@"📊 Your Followed Traders ({followedTraders.Count} total)
 
 {string.Join("\n", myTraderLines)}
 
-Use `/unfollow 1,2,3` or `/unfollow @trader1,@trader2` to unfollow traders.";
+Use /unfollow 1,2,3 or /unfollow @trader1,@trader2 to unfollow traders.";
 
                 await _botClient.SendTextMessageAsync(
                     chatId: chatId,
-                    text: myTradersMessage,
-                    parseMode: ParseMode.Markdown
+                    text: myTradersMessage
                 );
                 break;
 
@@ -274,7 +272,7 @@ Use `/unfollow 1,2,3` or `/unfollow @trader1,@trader2` to unfollow traders.";
                 {
                     await _botClient.SendTextMessageAsync(
                         chatId: chatId,
-                        text: "❌ Please specify traders to follow.\n\nExamples:\n`/follow 1,2,3`\n`/follow @trader1,@trader2`\n`/follow 1,@trader2,3`",
+                        text: "❌ Please specify traders to follow.\n\nExamples:\n/follow 1,2,3\n/follow @trader1,@trader2\n/follow 1,@trader2,3",
                         parseMode: ParseMode.Markdown
                     );
                     break;
@@ -287,19 +285,20 @@ Use `/unfollow 1,2,3` or `/unfollow @trader1,@trader2` to unfollow traders.";
                 {
                     await _botClient.SendTextMessageAsync(
                         chatId: chatId,
-                        text: "❌ Please specify traders to follow.\n\nExamples:\n`/follow 1,2,3`\n`/follow @trader1,@trader2`",
+                        text: "❌ Please specify traders to follow.\n\nExamples:\n/follow 1,2,3\n/follow @trader1,@trader2",
                         parseMode: ParseMode.Markdown
                     );
                     break;
                 }
 
-                var followedCount = 0;
-                var alreadyFollowingCount = 0;
+                var followedNames = new List<string>();
+                var alreadyFollowingNames = new List<string>();
                 var notFoundList = new List<string>();
 
                 foreach (var part in followParts)
                 {
                     bool success;
+                    string? traderHandle = null;
 
                     // Check if it's an ID (number) or handle (starts with @)
                     if (int.TryParse(part, out var traderId))
@@ -311,6 +310,7 @@ Use `/unfollow 1,2,3` or `/unfollow @trader1,@trader2` to unfollow traders.";
                             notFoundList.Add(part);
                             continue;
                         }
+                        traderHandle = trader.Handle;
                         success = await traderService.FollowTraderAsync(userForFollow.Id, traderId);
                     }
                     else if (part.StartsWith("@"))
@@ -329,9 +329,10 @@ Use `/unfollow 1,2,3` or `/unfollow @trader1,@trader2` to unfollow traders.";
                                 continue;
                             }
                             // Trader exists but already following
-                            alreadyFollowingCount++;
+                            alreadyFollowingNames.Add(trader.Handle);
                             continue;
                         }
+                        traderHandle = handle;
                     }
                     else
                     {
@@ -339,26 +340,25 @@ Use `/unfollow 1,2,3` or `/unfollow @trader1,@trader2` to unfollow traders.";
                         continue;
                     }
 
-                    if (success)
-                        followedCount++;
-                    else
-                        alreadyFollowingCount++;
+                    if (success && traderHandle != null)
+                        followedNames.Add(traderHandle);
+                    else if (traderHandle != null)
+                        alreadyFollowingNames.Add(traderHandle);
                 }
 
                 var followResultParts = new List<string>();
-                if (followedCount > 0)
-                    followResultParts.Add($"✅ Now following {followedCount} trader(s)");
-                if (alreadyFollowingCount > 0)
-                    followResultParts.Add($"ℹ️ Already following {alreadyFollowingCount} trader(s)");
+                if (followedNames.Count > 0)
+                    followResultParts.Add($"Now following {string.Join(", ", followedNames)}");
+                if (alreadyFollowingNames.Count > 0)
+                    followResultParts.Add($"Already following {string.Join(", ", alreadyFollowingNames)}");
                 if (notFoundList.Count > 0)
-                    followResultParts.Add($"❌ Not found: {string.Join(", ", notFoundList)}");
+                    followResultParts.Add($"Not found: {string.Join(", ", notFoundList)}");
 
                 var followResultMessage = string.Join("\n", followResultParts);
 
                 await _botClient.SendTextMessageAsync(
                     chatId: chatId,
-                    text: followResultMessage,
-                    parseMode: ParseMode.Markdown
+                    text: followResultMessage
                 );
                 break;
 
@@ -380,7 +380,7 @@ Use `/unfollow 1,2,3` or `/unfollow @trader1,@trader2` to unfollow traders.";
                 {
                     await _botClient.SendTextMessageAsync(
                         chatId: chatId,
-                        text: "❌ Please specify traders to unfollow.\n\nExamples:\n`/unfollow 1,2,3`\n`/unfollow @trader1,@trader2`\n`/unfollow 1,@trader2,3`",
+                        text: "❌ Please specify traders to unfollow.\n\nExamples:\n/unfollow 1,2,3\n/unfollow @trader1,@trader2\n/unfollow 1,@trader2,3",
                         parseMode: ParseMode.Markdown
                     );
                     break;
@@ -393,19 +393,20 @@ Use `/unfollow 1,2,3` or `/unfollow @trader1,@trader2` to unfollow traders.";
                 {
                     await _botClient.SendTextMessageAsync(
                         chatId: chatId,
-                        text: "❌ Please specify traders to unfollow.\n\nExamples:\n`/unfollow 1,2,3`\n`/unfollow @trader1,@trader2`",
+                        text: "❌ Please specify traders to unfollow.\n\nExamples:\n/unfollow 1,2,3\n/unfollow @trader1,@trader2",
                         parseMode: ParseMode.Markdown
                     );
                     break;
                 }
 
-                var unfollowedCount = 0;
-                var notFollowingCount = 0;
+                var unfollowedNames = new List<string>();
+                var notFollowingNames = new List<string>();
                 var unfollowNotFoundList = new List<string>();
 
                 foreach (var part in unfollowParts)
                 {
                     bool success;
+                    string? traderHandle = null;
 
                     // Check if it's an ID (number) or handle (starts with @)
                     if (int.TryParse(part, out var traderId))
@@ -417,6 +418,7 @@ Use `/unfollow 1,2,3` or `/unfollow @trader1,@trader2` to unfollow traders.";
                             unfollowNotFoundList.Add(part);
                             continue;
                         }
+                        traderHandle = trader.Handle;
                         success = await traderService.UnfollowTraderAsync(userForUnfollow.Id, traderId);
                     }
                     else if (part.StartsWith("@"))
@@ -435,9 +437,10 @@ Use `/unfollow 1,2,3` or `/unfollow @trader1,@trader2` to unfollow traders.";
                                 continue;
                             }
                             // Trader exists but not following
-                            notFollowingCount++;
+                            notFollowingNames.Add(trader.Handle);
                             continue;
                         }
+                        traderHandle = handle;
                     }
                     else
                     {
@@ -445,26 +448,25 @@ Use `/unfollow 1,2,3` or `/unfollow @trader1,@trader2` to unfollow traders.";
                         continue;
                     }
 
-                    if (success)
-                        unfollowedCount++;
-                    else
-                        notFollowingCount++;
+                    if (success && traderHandle != null)
+                        unfollowedNames.Add(traderHandle);
+                    else if (traderHandle != null)
+                        notFollowingNames.Add(traderHandle);
                 }
 
                 var unfollowResultParts = new List<string>();
-                if (unfollowedCount > 0)
-                    unfollowResultParts.Add($"✅ Unfollowed {unfollowedCount} trader(s)");
-                if (notFollowingCount > 0)
-                    unfollowResultParts.Add($"ℹ️ Weren't following {notFollowingCount} trader(s)");
+                if (unfollowedNames.Count > 0)
+                    unfollowResultParts.Add($"Unfollowed {string.Join(", ", unfollowedNames)}");
+                if (notFollowingNames.Count > 0)
+                    unfollowResultParts.Add($"Weren't following {string.Join(", ", notFollowingNames)}");
                 if (unfollowNotFoundList.Count > 0)
-                    unfollowResultParts.Add($"❌ Not found: {string.Join(", ", unfollowNotFoundList)}");
+                    unfollowResultParts.Add($"Not found: {string.Join(", ", unfollowNotFoundList)}");
 
                 var unfollowResultMessage = string.Join("\n", unfollowResultParts);
 
                 await _botClient.SendTextMessageAsync(
                     chatId: chatId,
-                    text: unfollowResultMessage,
-                    parseMode: ParseMode.Markdown
+                    text: unfollowResultMessage
                 );
                 break;
 
