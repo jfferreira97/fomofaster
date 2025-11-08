@@ -70,8 +70,8 @@ public class NotificationsController : ControllerBase
                 _logger.LogWarning("Could not extract ticker from message");
             }
 
-            // Send to all active Telegram users (with or without contract address)
-            await _telegramService.SendNotificationToAllUsersAsync(noti, contractAddress);
+            // Send to users following this trader (or all if no trader extracted)
+            await _telegramService.SendNotificationToAllUsersAsync(noti, contractAddress, trader);
 
             return Ok(new
             {

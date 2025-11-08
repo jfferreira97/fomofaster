@@ -44,7 +44,7 @@ public class TelegramService : ITelegramService
         return _botClient != null;
     }
 
-    public async Task SendNotificationToAllUsersAsync(NotificationRequest notification, string? contractAddress = null)
+    public async Task SendNotificationToAllUsersAsync(NotificationRequest notification, string? contractAddress = null, string? traderHandle = null)
     {
         if (_botClient == null)
         {
@@ -54,8 +54,32 @@ public class TelegramService : ITelegramService
 
         using var scope = _serviceProvider.CreateScope();
         var userService = scope.ServiceProvider.GetRequiredService<IUserService>();
+        var traderService = scope.ServiceProvider.GetRequiredService<ITraderService>();
 
-        var users = await userService.GetAllActiveUsersAsync();
+        List<Models.User> users;
+
+        // CRITICAL: Filter by trader followers if trader handle provided - O(log n)
+        if (!string.IsNullOrEmpty(traderHandle))
+        {
+            var followerUserIds = await traderService.GetFollowerUserIdsForTraderHandleAsync(traderHandle);
+
+            if (followerUserIds.Count == 0)
+            {
+                _logger.LogInformation("No users following trader {Trader}, skipping notification", traderHandle);
+                return;
+            }
+
+            // Get only active users who follow this trader
+            var allUsers = await userService.GetAllActiveUsersAsync();
+            users = allUsers.Where(u => followerUserIds.Contains(u.Id)).ToList();
+
+            _logger.LogInformation("Filtered to {Count} users following trader {Trader}", users.Count, traderHandle);
+        }
+        else
+        {
+            // No trader specified - send to all active users (backward compatible)
+            users = await userService.GetAllActiveUsersAsync();
+        }
 
         if (users.Count == 0)
         {

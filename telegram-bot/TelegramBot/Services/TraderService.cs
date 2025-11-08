@@ -20,9 +20,24 @@ public class TraderService : ITraderService
         return await _dbContext.Traders.FirstOrDefaultAsync(t => t.Handle == handle);
     }
 
+    public async Task<Trader?> GetTraderByIdAsync(int traderId)
+    {
+        return await _dbContext.Traders.FindAsync(traderId);
+    }
+
     public async Task<List<Trader>> GetAllTradersAsync()
     {
         return await _dbContext.Traders.OrderBy(t => t.Handle).ToListAsync();
+    }
+
+    public async Task<List<Trader>> GetTradersByUserIdAsync(int userId)
+    {
+        return await _dbContext.UserTraders
+            .Where(ut => ut.UserId == userId)
+            .Include(ut => ut.Trader)
+            .Select(ut => ut.Trader)
+            .OrderBy(t => t.Handle)
+            .ToListAsync();
     }
 
     public async Task<Trader> AddOrUpdateTraderAsync(string handle)
@@ -49,5 +64,86 @@ public class TraderService : ITraderService
 
         await _dbContext.SaveChangesAsync();
         return trader;
+    }
+
+    public async Task<bool> FollowTraderAsync(int userId, int traderId)
+    {
+        // Check if already following - O(log n) thanks to composite index
+        var existing = await _dbContext.UserTraders
+            .FirstOrDefaultAsync(ut => ut.UserId == userId && ut.TraderId == traderId);
+
+        if (existing != null)
+            return false; // Already following
+
+        var userTrader = new UserTrader
+        {
+            UserId = userId,
+            TraderId = traderId,
+            FollowedAt = DateTime.UtcNow
+        };
+
+        _dbContext.UserTraders.Add(userTrader);
+        await _dbContext.SaveChangesAsync();
+
+        _logger.LogInformation("User {UserId} now following trader {TraderId}", userId, traderId);
+        return true;
+    }
+
+    public async Task<bool> FollowTraderByHandleAsync(int userId, string handle)
+    {
+        var trader = await GetTraderByHandleAsync(handle);
+        if (trader == null)
+            return false;
+
+        return await FollowTraderAsync(userId, trader.Id);
+    }
+
+    public async Task<bool> UnfollowTraderAsync(int userId, int traderId)
+    {
+        var userTrader = await _dbContext.UserTraders
+            .FirstOrDefaultAsync(ut => ut.UserId == userId && ut.TraderId == traderId);
+
+        if (userTrader == null)
+            return false; // Not following
+
+        _dbContext.UserTraders.Remove(userTrader);
+        await _dbContext.SaveChangesAsync();
+
+        _logger.LogInformation("User {UserId} unfollowed trader {TraderId}", userId, traderId);
+        return true;
+    }
+
+    public async Task<bool> UnfollowTraderByHandleAsync(int userId, string handle)
+    {
+        var trader = await GetTraderByHandleAsync(handle);
+        if (trader == null)
+            return false;
+
+        return await UnfollowTraderAsync(userId, trader.Id);
+    }
+
+    public async Task<bool> IsFollowingAsync(int userId, int traderId)
+    {
+        // O(log n) lookup thanks to composite index
+        return await _dbContext.UserTraders
+            .AnyAsync(ut => ut.UserId == userId && ut.TraderId == traderId);
+    }
+
+    // CRITICAL FOR NOTIFICATION FILTERING - O(log n) thanks to TraderId index
+    public async Task<List<int>> GetFollowerUserIdsForTraderAsync(int traderId)
+    {
+        return await _dbContext.UserTraders
+            .Where(ut => ut.TraderId == traderId)
+            .Select(ut => ut.UserId)
+            .ToListAsync();
+    }
+
+    public async Task<List<int>> GetFollowerUserIdsForTraderHandleAsync(string handle)
+    {
+        var trader = await GetTraderByHandleAsync(handle);
+        if (trader == null)
+            return new List<int>();
+
+        return await GetFollowerUserIdsForTraderAsync(trader.Id);
     }
 }
