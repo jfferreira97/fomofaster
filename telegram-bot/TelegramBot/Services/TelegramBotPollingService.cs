@@ -130,7 +130,7 @@ public class TelegramBotPollingService : BackgroundService
 
                 await _botClient.SendTextMessageAsync(
                     chatId: chatId,
-                    text: @"🎉 Welcome to FOMOFAST!
+                    text: @"🎉 Welcome to FOMOFASTER!
 
 You'll now receive real-time notifications when top Solana traders make moves.
 
@@ -152,7 +152,7 @@ Stay ahead of the curve! 🚀",
             case "/help":
                 await _botClient.SendTextMessageAsync(
                     chatId: chatId,
-                    text: @"📚 FOMOFAST Commands:
+                    text: @"📚 FOMOFASTER Commands:
 
 /start - Subscribe to notifications
 /help - Show this help message

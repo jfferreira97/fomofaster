@@ -97,7 +97,7 @@ app.MapPost("/test-bot", async (ITelegramService telegramService, long chatId) =
 {
     try
     {
-        await telegramService.SendTestMessageAsync(chatId, "🎉 Bot is working! This is a test message from FOMOFAST.");
+        await telegramService.SendTestMessageAsync(chatId, "🎉 Bot is working! This is a test message from FOMOFASTER.");
         return Results.Ok(new { status = "success", message = "Test message sent" });
     }
     catch (Exception ex)
