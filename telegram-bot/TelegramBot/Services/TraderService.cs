@@ -146,4 +146,36 @@ public class TraderService : ITraderService
 
         return await GetFollowerUserIdsForTraderAsync(trader.Id);
     }
+
+    public async Task<int> FollowAllTradersAsync(int userId)
+    {
+        var allTraders = await GetAllTradersAsync();
+        var followedCount = 0;
+
+        foreach (var trader in allTraders)
+        {
+            var success = await FollowTraderAsync(userId, trader.Id);
+            if (success)
+                followedCount++;
+        }
+
+        _logger.LogInformation("User {UserId} followed {Count} traders (all)", userId, followedCount);
+        return followedCount;
+    }
+
+    public async Task<int> UnfollowAllTradersAsync(int userId)
+    {
+        var followedTraders = await GetTradersByUserIdAsync(userId);
+        var unfollowedCount = 0;
+
+        foreach (var trader in followedTraders)
+        {
+            var success = await UnfollowTraderAsync(userId, trader.Id);
+            if (success)
+                unfollowedCount++;
+        }
+
+        _logger.LogInformation("User {UserId} unfollowed {Count} traders (all)", userId, unfollowedCount);
+        return unfollowedCount;
+    }
 }

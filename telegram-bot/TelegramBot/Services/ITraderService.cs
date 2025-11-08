@@ -16,4 +16,6 @@ public interface ITraderService
     Task<bool> IsFollowingAsync(int userId, int traderId);
     Task<List<int>> GetFollowerUserIdsForTraderAsync(int traderId);
     Task<List<int>> GetFollowerUserIdsForTraderHandleAsync(string handle);
+    Task<int> FollowAllTradersAsync(int userId);
+    Task<int> UnfollowAllTradersAsync(int userId);
 }

@@ -159,7 +159,9 @@ Stay ahead of the curve! 🚀",
 /list - View all available traders
 /mytraders - View traders you're following
 /follow <ids/handles> - Follow traders (e.g., /follow 1,2,3 or /follow trader1,trader2)
+/follow all - Follow all traders
 /unfollow <ids/handles> - Unfollow traders (e.g., /unfollow 1,trader2)
+/unfollow all - Unfollow all traders
 
 You'll only receive notifications from traders you follow!",
                     parseMode: ParseMode.Markdown
@@ -272,13 +274,45 @@ Use /unfollow 1,2,3 or /unfollow trader1,trader2 to unfollow traders.";
                 {
                     await _botClient.SendTextMessageAsync(
                         chatId: chatId,
-                        text: "❌ Please specify traders to follow.\n\nExamples:\n/follow 1,2,3\n/follow trader1,trader2\n/follow 1,trader2,3",
+                        text: "❌ Please specify traders to follow.\n\nExamples:\n/follow 1,2,3\n/follow trader1,trader2\n/follow 1,trader2,3\n/follow all",
                         parseMode: ParseMode.Markdown
                     );
                     break;
                 }
 
                 var followInput = followArgs[1].Trim();
+
+                // Handle /follow all
+                if (followInput.Equals("all", StringComparison.OrdinalIgnoreCase))
+                {
+                    var followedCount = await traderService.FollowAllTradersAsync(userForFollow.Id);
+                    var allTradersForFollow = await traderService.GetAllTradersAsync();
+
+                    if (allTradersForFollow.Count == 0)
+                    {
+                        await _botClient.SendTextMessageAsync(
+                            chatId: chatId,
+                            text: "❌ No traders available to follow yet."
+                        );
+                        break;
+                    }
+
+                    if (followedCount == 0)
+                    {
+                        await _botClient.SendTextMessageAsync(
+                            chatId: chatId,
+                            text: $"You're already following all {allTradersForFollow.Count} traders."
+                        );
+                    }
+                    else
+                    {
+                        await _botClient.SendTextMessageAsync(
+                            chatId: chatId,
+                            text: $"Now following all traders ({followedCount} new, {allTradersForFollow.Count} total)"
+                        );
+                    }
+                    break;
+                }
                 var followParts = followInput.Split(',').Select(p => p.Trim()).Where(p => !string.IsNullOrEmpty(p)).ToList();
 
                 if (followParts.Count == 0)
@@ -375,13 +409,35 @@ Use /unfollow 1,2,3 or /unfollow trader1,trader2 to unfollow traders.";
                 {
                     await _botClient.SendTextMessageAsync(
                         chatId: chatId,
-                        text: "❌ Please specify traders to unfollow.\n\nExamples:\n/unfollow 1,2,3\n/unfollow trader1,trader2\n/unfollow 1,trader2,3",
+                        text: "❌ Please specify traders to unfollow.\n\nExamples:\n/unfollow 1,2,3\n/unfollow trader1,trader2\n/unfollow 1,trader2,3\n/unfollow all",
                         parseMode: ParseMode.Markdown
                     );
                     break;
                 }
 
                 var unfollowInput = unfollowArgs[1].Trim();
+
+                // Handle /unfollow all
+                if (unfollowInput.Equals("all", StringComparison.OrdinalIgnoreCase))
+                {
+                    var unfollowedCount = await traderService.UnfollowAllTradersAsync(userForUnfollow.Id);
+
+                    if (unfollowedCount == 0)
+                    {
+                        await _botClient.SendTextMessageAsync(
+                            chatId: chatId,
+                            text: "You're not following any traders."
+                        );
+                    }
+                    else
+                    {
+                        await _botClient.SendTextMessageAsync(
+                            chatId: chatId,
+                            text: $"Unfollowed all traders ({unfollowedCount} total)"
+                        );
+                    }
+                    break;
+                }
                 var unfollowParts = unfollowInput.Split(',').Select(p => p.Trim()).Where(p => !string.IsNullOrEmpty(p)).ToList();
 
                 if (unfollowParts.Count == 0)
