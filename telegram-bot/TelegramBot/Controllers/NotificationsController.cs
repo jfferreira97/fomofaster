@@ -45,9 +45,23 @@ public class NotificationsController : ControllerBase
                 });
             }
 
-            var ticker = ExtractTicker(noti.Message);
-            var trader = ExtractTrader(noti.Message);
+            string? ticker = null;
+            string? trader = null;
             string? contractAddress = null;
+
+            // Check if this is a thesis notification
+            if (IsThesisNotification(noti.Message))
+            {
+                _logger.LogInformation("📝 Detected THESIS notification");
+                ticker = ExtractThesisTicker(noti.Message);
+                trader = ExtractThesisTrader(noti.Message);
+            }
+            else
+            {
+                // Regular buy/sell notification
+                ticker = ExtractTicker(noti.Message);
+                trader = ExtractTrader(noti.Message);
+            }
 
             // Save trader to database if found
             if (!string.IsNullOrEmpty(trader))
@@ -127,6 +141,45 @@ public class NotificationsController : ControllerBase
         if (match.Success)
         {
             return match.Groups[1].Value; // Returns "frankdegods" without the @
+        }
+        return null;
+    }
+
+    private bool IsThesisNotification(string message)
+    {
+        // Thesis notifications contain "thesis" but NOT "MC" and NOT "bought" or "sold"
+        // Examples:
+        // "Blobby thesis by 0xuberM I tailed nosanity I have no idea what's happening"
+        // "BANGERS thesis by jotagezin AND I KNOW BANGERS"
+        return message.Contains("thesis", StringComparison.OrdinalIgnoreCase) &&
+               !message.Contains("MC", StringComparison.OrdinalIgnoreCase) &&
+               !message.Contains("bought", StringComparison.OrdinalIgnoreCase) &&
+               !message.Contains("sold", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private string? ExtractThesisTicker(string message)
+    {
+        // Format: "TICKER thesis by trader ..."
+        // Example: "Blobby thesis by 0xuberM I tailed nosanity I have no idea what's happening"
+        int thesisIndex = message.IndexOf(" thesis by", StringComparison.OrdinalIgnoreCase);
+        if (thesisIndex > 0)
+        {
+            // Extract everything before " thesis by" and trim whitespace
+            string ticker = message.Substring(0, thesisIndex).Trim();
+            return ticker.ToUpper();
+        }
+        return null;
+    }
+
+    private string? ExtractThesisTrader(string message)
+    {
+        // Format: "TICKER thesis by trader ..."
+        // Example: "Blobby thesis by 0xuberM I tailed nosanity I have no idea what's happening"
+        // Note: No @ symbol before trader name in thesis notifications
+        var match = Regex.Match(message, @"thesis by\s+(\w+)", RegexOptions.IgnoreCase);
+        if (match.Success)
+        {
+            return match.Groups[1].Value; // Returns "0xuberM"
         }
         return null;
     }
