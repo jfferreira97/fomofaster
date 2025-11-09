@@ -87,17 +87,27 @@ public class TelegramService : ITelegramService
             return;
         }
 
+        // Replace @traderHandle with Twitter link to avoid Telegram interpreting it as a Telegram user
+        var processedMessage = notification.Message;
+        if (!string.IsNullOrEmpty(traderHandle))
+        {
+            processedMessage = processedMessage.Replace(
+                $"@{traderHandle}",
+                $"[{traderHandle}](https://x.com/{traderHandle})"
+            );
+        }
+
         string message;
         if (!string.IsNullOrEmpty(contractAddress))
         {
-            message = $@"{notification.Message}
+            message = $@"{processedMessage}
 
 📝 Contract: `{contractAddress}`
 🔗 [DEXScreener](https://dexscreener.com/solana/{contractAddress})";
         }
         else
         {
-            message = $@"{notification.Message}";
+            message = $@"{processedMessage}";
         }
 
         int successCount = 0;
