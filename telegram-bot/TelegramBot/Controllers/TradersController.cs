@@ -75,6 +75,42 @@ public class TradersController : ControllerBase
             return StatusCode(500, new { status = "error", message = ex.Message });
         }
     }
+
+    [HttpPost("bulk-add")]
+    public async Task<IActionResult> BulkAddTraders([FromBody] BulkAddTradersRequest request)
+    {
+        try
+        {
+            var added = new List<string>();
+            var skipped = new List<string>();
+
+            foreach (var handle in request.Handles)
+            {
+                // Strip @ if present
+                var cleanHandle = handle.TrimStart('@');
+
+                // Add new trader
+                await _traderService.AddOrUpdateTraderAsync(cleanHandle);
+                added.Add(cleanHandle);
+            }
+
+            return Ok(new
+            {
+                status = "success",
+                added = added.Count,
+                skipped = skipped.Count,
+                total = request.Handles.Length,
+                addedHandles = added,
+                skippedHandles = skipped
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error bulk adding traders");
+            return StatusCode(500, new { status = "error", message = ex.Message });
+        }
+    }
 }
 
 public record FollowRequest(long ChatId, int TraderId);
+public record BulkAddTradersRequest(string[] Handles);
