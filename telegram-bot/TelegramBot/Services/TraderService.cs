@@ -27,7 +27,7 @@ public class TraderService : ITraderService
 
     public async Task<List<Trader>> GetAllTradersAsync()
     {
-        return await _dbContext.Traders.OrderBy(t => t.Handle).ToListAsync();
+        return await _dbContext.Traders.OrderBy(t => t.Id).ToListAsync();
     }
 
     public async Task<List<Trader>> GetTradersByUserIdAsync(int userId)
@@ -36,7 +36,7 @@ public class TraderService : ITraderService
             .Where(ut => ut.UserId == userId)
             .Include(ut => ut.Trader)
             .Select(ut => ut.Trader)
-            .OrderBy(t => t.Handle)
+            .OrderBy(t => t.Id)
             .ToListAsync();
     }
 

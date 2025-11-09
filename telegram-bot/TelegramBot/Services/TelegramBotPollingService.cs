@@ -198,7 +198,7 @@ You'll only receive notifications from traders you follow!",
                 {
                     var isFollowing = await traderService.IsFollowingAsync(user.Id, trader.Id);
                     var status = isFollowing ? "✅" : "❌";
-                    traderLines.Add($"{trader.Id} - {trader.Handle} {status}");
+                    traderLines.Add($"{trader.Id} - [{trader.Handle}](https://x.com/{trader.Handle}) {status}");
                 }
 
                 var listMessage = $@"📊 All Traders ({allTraders.Count} total)
@@ -209,7 +209,8 @@ Use /follow 1,2,3 or /follow trader1,trader2 to follow traders.";
 
                 await _botClient.SendTextMessageAsync(
                     chatId: chatId,
-                    text: listMessage
+                    text: listMessage,
+                    parseMode: ParseMode.Markdown
                 );
                 break;
 
@@ -241,7 +242,7 @@ Use /follow 1,2,3 or /follow trader1,trader2 to follow traders.";
                 var myTraderLines = new List<string>();
                 foreach (var trader in followedTraders)
                 {
-                    myTraderLines.Add($"{trader.Id} - {trader.Handle} ✅");
+                    myTraderLines.Add($"{trader.Id} - [{trader.Handle}](https://x.com/{trader.Handle}) ✅");
                 }
 
                 var myTradersMessage = $@"📊 Your Followed Traders ({followedTraders.Count} total)
@@ -252,7 +253,8 @@ Use /unfollow 1,2,3 or /unfollow trader1,trader2 to unfollow traders.";
 
                 await _botClient.SendTextMessageAsync(
                     chatId: chatId,
-                    text: myTradersMessage
+                    text: myTradersMessage,
+                    parseMode: ParseMode.Markdown
                 );
                 break;
 
