@@ -178,4 +178,26 @@ public class TraderService : ITraderService
         _logger.LogInformation("User {UserId} unfollowed {Count} traders (all)", userId, unfollowedCount);
         return unfollowedCount;
     }
+
+    public async Task<bool> DeleteTraderAsync(int traderId)
+    {
+        var trader = await GetTraderByIdAsync(traderId);
+        if (trader == null)
+            return false;
+
+        _dbContext.Traders.Remove(trader);
+        await _dbContext.SaveChangesAsync();
+
+        _logger.LogInformation("Deleted trader {TraderId} ({Handle})", traderId, trader.Handle);
+        return true;
+    }
+
+    public async Task<bool> DeleteTraderByHandleAsync(string handle)
+    {
+        var trader = await GetTraderByHandleAsync(handle);
+        if (trader == null)
+            return false;
+
+        return await DeleteTraderAsync(trader.Id);
+    }
 }

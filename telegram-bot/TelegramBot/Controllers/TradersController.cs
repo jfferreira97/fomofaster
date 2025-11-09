@@ -110,6 +110,58 @@ public class TradersController : ControllerBase
             return StatusCode(500, new { status = "error", message = ex.Message });
         }
     }
+
+    [HttpDelete("{traderId}")]
+    public async Task<IActionResult> DeleteTrader(int traderId)
+    {
+        try
+        {
+            var success = await _traderService.DeleteTraderAsync(traderId);
+
+            if (!success)
+            {
+                return NotFound(new { status = "error", message = "Trader not found" });
+            }
+
+            return Ok(new
+            {
+                status = "success",
+                message = "Trader deleted (UserTrader relationships automatically removed via cascade delete)"
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error deleting trader");
+            return StatusCode(500, new { status = "error", message = ex.Message });
+        }
+    }
+
+    [HttpDelete("by-handle/{handle}")]
+    public async Task<IActionResult> DeleteTraderByHandle(string handle)
+    {
+        try
+        {
+            // Strip @ if present
+            var cleanHandle = handle.TrimStart('@');
+            var success = await _traderService.DeleteTraderByHandleAsync(cleanHandle);
+
+            if (!success)
+            {
+                return NotFound(new { status = "error", message = "Trader not found" });
+            }
+
+            return Ok(new
+            {
+                status = "success",
+                message = "Trader deleted (UserTrader relationships automatically removed via cascade delete)"
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error deleting trader by handle");
+            return StatusCode(500, new { status = "error", message = ex.Message });
+        }
+    }
 }
 
 public record FollowRequest(long ChatId, int TraderId);

@@ -18,4 +18,6 @@ public interface ITraderService
     Task<List<int>> GetFollowerUserIdsForTraderHandleAsync(string handle);
     Task<int> FollowAllTradersAsync(int userId);
     Task<int> UnfollowAllTradersAsync(int userId);
+    Task<bool> DeleteTraderAsync(int traderId);
+    Task<bool> DeleteTraderByHandleAsync(string handle);
 }
