@@ -96,7 +96,7 @@ public class NotificationsController : ControllerBase
             }
 
             // Send to users following this trader (or all if no trader extracted)
-            await _telegramService.SendNotificationToAllUsersAsync(noti, contractAddress, trader);
+            await _telegramService.SendNotificationToAllUsersAsync(noti, contractAddress, trader, ticker);
 
             return Ok(new
             {

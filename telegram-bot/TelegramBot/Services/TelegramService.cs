@@ -1,4 +1,5 @@
 using TelegramBot.Models;
+using TelegramBot.Data;
 using Microsoft.Extensions.Options;
 using Telegram.Bot;
 using Telegram.Bot.Types.Enums;
@@ -44,7 +45,7 @@ public class TelegramService : ITelegramService
         return _botClient != null;
     }
 
-    public async Task SendNotificationToAllUsersAsync(NotificationRequest notification, string? contractAddress = null, string? traderHandle = null)
+    public async Task SendNotificationToAllUsersAsync(NotificationRequest notification, string? contractAddress = null, string? traderHandle = null, string? ticker = null)
     {
         if (_botClient == null)
         {
@@ -113,16 +114,43 @@ public class TelegramService : ITelegramService
         int successCount = 0;
         int failCount = 0;
 
+        // Create Notification record in database
+        var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var notificationRecord = new Models.Notification
+        {
+            Message = notification.Message,
+            Ticker = ticker,
+            Trader = traderHandle,
+            HasCA = !string.IsNullOrEmpty(contractAddress),
+            ContractAddress = contractAddress,
+            SentAt = DateTime.UtcNow
+        };
+        dbContext.Notifications.Add(notificationRecord);
+        await dbContext.SaveChangesAsync();
+
+        // Send messages and track MessageIds
         foreach (var user in users)
         {
             try
             {
-                await _botClient.SendTextMessageAsync(
+                var sentMessage = await _botClient.SendTextMessageAsync(
                     chatId: user.ChatId,
                     text: message,
                     parseMode: ParseMode.Markdown,
                     disableWebPagePreview: true
                 );
+
+                // Save SentMessage record
+                var sentMessageRecord = new Models.SentMessage
+                {
+                    NotificationId = notificationRecord.Id,
+                    ChatId = user.ChatId,
+                    MessageId = sentMessage.MessageId,
+                    SentAt = DateTime.UtcNow,
+                    IsEdited = false,
+                    EditedAt = null
+                };
+                dbContext.SentMessages.Add(sentMessageRecord);
 
                 successCount++;
             }
@@ -132,6 +160,9 @@ public class TelegramService : ITelegramService
                 failCount++;
             }
         }
+
+        // Save all SentMessage records in one batch
+        await dbContext.SaveChangesAsync();
 
         _logger.LogInformation("✅ Notification sent to {Success}/{Total} users ({Failed} failed)",
             successCount, users.Count, failCount);

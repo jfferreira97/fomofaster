@@ -12,6 +12,8 @@ public class AppDbContext : DbContext
     public DbSet<User> Users { get; set; }
     public DbSet<Trader> Traders { get; set; }
     public DbSet<UserTrader> UserTraders { get; set; }
+    public DbSet<Notification> Notifications { get; set; }
+    public DbSet<SentMessage> SentMessages { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -58,6 +60,42 @@ public class AppDbContext : DbContext
             entity.HasOne(e => e.Trader)
                 .WithMany()
                 .HasForeignKey(e => e.TraderId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<Notification>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Message).IsRequired();
+            entity.Property(e => e.Ticker).HasMaxLength(50);
+            entity.Property(e => e.Trader).HasMaxLength(100);
+            entity.Property(e => e.HasCA).IsRequired();
+            entity.Property(e => e.ContractAddress).HasMaxLength(100);
+            entity.Property(e => e.SentAt).IsRequired();
+
+            // Index for cleanup queries (delete old notifications)
+            entity.HasIndex(e => e.SentAt);
+        });
+
+        modelBuilder.Entity<SentMessage>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.NotificationId).IsRequired();
+            entity.Property(e => e.ChatId).IsRequired();
+            entity.Property(e => e.MessageId).IsRequired();
+            entity.Property(e => e.SentAt).IsRequired();
+            entity.Property(e => e.IsEdited).IsRequired();
+
+            // Index for finding messages by NotificationId (for editing)
+            entity.HasIndex(e => e.NotificationId);
+
+            // Index for cleanup queries
+            entity.HasIndex(e => e.SentAt);
+
+            // Configure relationship
+            entity.HasOne(e => e.Notification)
+                .WithMany()
+                .HasForeignKey(e => e.NotificationId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
     }
