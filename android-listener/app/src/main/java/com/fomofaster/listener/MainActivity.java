@@ -202,11 +202,7 @@ public class MainActivity extends AppCompatActivity {
         // Build test payload
         try {
             JSONObject json = new JSONObject();
-            json.put("app", "fomo");
-            json.put("title", "TEST");
-            json.put("text", "This is a test notification from FomoFaster Listener");
-            json.put("contractAddress", "0xTEST");
-            json.put("timestamp", System.currentTimeMillis());
+            json.put("message", "TEST This is a test notification from FomoFaster Listener");
 
             String jsonString = json.toString();
             Log.d(TAG, "Sending test request: " + jsonString);

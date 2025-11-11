@@ -53,7 +53,7 @@ public class SolanaService : ISolanaService
             _logger.LogInformation("🔍 Searching for contract address for ticker: {Ticker}", ticker);
 
             // Get recent transactions to extract mint addresses
-            var txUrl = $"https://api.helius.xyz/v0/addresses/{_settings.FomoAggregatorWallet}/transactions?api-key={_settings.ApiKey}&limit=50";
+            var txUrl = $"https://api.helius.xyz/v0/addresses/{_settings.FomoAggregatorWallet}/transactions?api-key={_settings.ApiKey}&limit=70";
             var txResponse = await _httpClient.GetAsync(txUrl);
 
             if (!txResponse.IsSuccessStatusCode)
@@ -118,9 +118,13 @@ public class SolanaService : ISolanaService
                         string? symbol = null;
 
                         if (tokenInfo.TryGetProperty("onChainMetadata", out var onChainMetadata) &&
+                            onChainMetadata.ValueKind != JsonValueKind.Null &&
                             onChainMetadata.TryGetProperty("metadata", out var metadata) &&
+                            metadata.ValueKind != JsonValueKind.Null &&
                             metadata.TryGetProperty("data", out var data) &&
-                            data.TryGetProperty("symbol", out var symbolElement))
+                            data.ValueKind != JsonValueKind.Null &&
+                            data.TryGetProperty("symbol", out var symbolElement) &&
+                            symbolElement.ValueKind != JsonValueKind.Null)
                         {
                             symbol = symbolElement.GetString();
                         }
