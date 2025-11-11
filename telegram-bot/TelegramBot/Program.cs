@@ -65,9 +65,20 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
+// Enable static files for dashboard
+app.UseStaticFiles();
+
 app.UseCors("AllowAll");
 app.UseAuthorization();
 app.MapControllers();
+
+// Dashboard endpoint
+app.MapGet("/dashboard", async context =>
+{
+    context.Response.ContentType = "text/html";
+    var html = await System.IO.File.ReadAllTextAsync("wwwroot/dashboard.html");
+    await context.Response.WriteAsync(html);
+});
 
 app.MapGet("/", () => new { message = "FomoFaster Backend Running", version = "1.0.0" });
 
@@ -105,5 +116,21 @@ app.MapPost("/test-bot", async (ITelegramService telegramService, long chatId) =
         return Results.BadRequest(new { status = "error", message = ex.Message });
     }
 });
+
+// Auto-open dashboard in browser on startup
+var dashboardUrl = "http://localhost:8000/dashboard";
+try
+{
+    System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+    {
+        FileName = dashboardUrl,
+        UseShellExecute = true
+    });
+    Console.WriteLine($"🚀 Dashboard opened at {dashboardUrl}");
+}
+catch (Exception ex)
+{
+    Console.WriteLine($"⚠️  Could not auto-open dashboard: {ex.Message}");
+}
 
 app.Run();

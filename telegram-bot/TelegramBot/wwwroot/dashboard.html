@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FOMOFASTER Alerts - Dashboard</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: #0e1621;
+            color: #ffffff;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .container {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+
+        .header {
+            background-color: #17212b;
+            padding: 12px 20px;
+            border-bottom: 1px solid #0e1621;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .header-title {
+            font-size: 16px;
+            font-weight: 500;
+            color: #ffffff;
+        }
+
+        .header-subtitle {
+            font-size: 14px;
+            color: #8a96a0;
+            margin-top: 2px;
+        }
+
+        .chat-area {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            background-color: #0e1621;
+        }
+
+        .message-bubble {
+            max-width: 80%;
+            margin-bottom: 12px;
+            animation: fadeIn 0.3s ease-in;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .message-content {
+            background-color: #182533;
+            border-radius: 12px;
+            padding: 8px 12px;
+            position: relative;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+        }
+
+        .message-text {
+            font-size: 14px;
+            line-height: 1.5;
+            color: #e8e9ea;
+            margin-bottom: 4px;
+            word-wrap: break-word;
+        }
+
+        .message-meta {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            font-size: 12px;
+            color: #6c7883;
+            margin-top: 6px;
+        }
+
+        .message-time {
+            font-size: 11px;
+            color: #6c7883;
+        }
+
+        .message-ticker {
+            display: inline-block;
+            background-color: #2b5278;
+            color: #5ca8e2;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 600;
+            margin-right: 4px;
+        }
+
+        .message-trader {
+            color: #5ca8e2;
+            text-decoration: none;
+            font-weight: 500;
+        }
+
+        .message-trader:hover {
+            text-decoration: underline;
+        }
+
+        .contract-address {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-top: 6px;
+            padding: 6px 8px;
+            background-color: #0e1621;
+            border-radius: 6px;
+            font-size: 12px;
+            color: #8a96a0;
+        }
+
+        .contract-address-text {
+            font-family: 'Courier New', monospace;
+            font-size: 11px;
+            color: #5ca8e2;
+            word-break: break-all;
+        }
+
+        .contract-icon {
+            width: 16px;
+            height: 16px;
+            background-color: #2b5278;
+            border-radius: 4px;
+            display: inline-block;
+        }
+
+        .dex-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            color: #5ca8e2;
+            text-decoration: none;
+            font-size: 12px;
+            margin-top: 4px;
+        }
+
+        .dex-link:hover {
+            text-decoration: underline;
+        }
+
+        .recipient-count {
+            font-size: 11px;
+            color: #6c7883;
+            margin-top: 4px;
+        }
+
+        .buy-indicator {
+            color: #4caf50;
+        }
+
+        .sell-indicator {
+            color: #f44336;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #6c7883;
+            font-size: 14px;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #6c7883;
+        }
+
+        .empty-state-icon {
+            font-size: 48px;
+            margin-bottom: 16px;
+            opacity: 0.5;
+        }
+
+        .refresh-indicator {
+            position: fixed;
+            top: 70px;
+            right: 20px;
+            background-color: #2b5278;
+            color: #5ca8e2;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 12px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+            animation: slideIn 0.3s ease-out;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(100px);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #0e1621;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #2b5278;
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #3d6a99;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div>
+                <div class="header-title">FOMOFASTER Alerts</div>
+                <div class="header-subtitle">bot</div>
+            </div>
+        </div>
+
+        <div class="chat-area" id="chatArea">
+            <div class="loading" id="loading">Loading notifications...</div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = window.location.origin;
+        const REFRESH_INTERVAL = 5000; // 5 seconds
+
+        let lastNotificationId = 0;
+        let isFirstLoad = true;
+        let displayedNotificationIds = new Set();
+
+        async function fetchNotifications() {
+            try {
+                const response = await fetch(`${API_BASE}/api/dashboard/notifications?limit=100`);
+                const data = await response.json();
+
+                if (data.status === 'success') {
+                    displayNotifications(data.notifications);
+                }
+            } catch (error) {
+                console.error('Error fetching notifications:', error);
+                if (isFirstLoad) {
+                    document.getElementById('chatArea').innerHTML = `
+                        <div class="empty-state">
+                            <div class="empty-state-icon">⚠️</div>
+                            <div>Failed to load notifications</div>
+                        </div>
+                    `;
+                }
+            }
+        }
+
+        function displayNotifications(notifications) {
+            const chatArea = document.getElementById('chatArea');
+
+            if (isFirstLoad) {
+                document.getElementById('loading')?.remove();
+                isFirstLoad = false;
+            }
+
+            if (notifications.length === 0) {
+                chatArea.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">📭</div>
+                        <div>No notifications yet</div>
+                    </div>
+                `;
+                return;
+            }
+
+            // Filter to only NEW notifications that haven't been displayed yet
+            const newNotifications = notifications.filter(n => !displayedNotificationIds.has(n.id));
+
+            if (newNotifications.length > 0) {
+                // Show refresh indicator for new messages
+                showRefreshIndicator(newNotifications.length);
+
+                // Add each new notification
+                newNotifications.forEach(notification => {
+                    const messageDiv = createMessageElement(notification);
+                    chatArea.appendChild(messageDiv);
+                    displayedNotificationIds.add(notification.id);
+                });
+
+                // Update last seen ID
+                lastNotificationId = Math.max(...notifications.map(n => n.id));
+
+                // Scroll to bottom
+                chatArea.scrollTop = chatArea.scrollHeight;
+            }
+        }
+
+        function createMessageElement(notification) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'message-bubble';
+            messageDiv.dataset.notificationId = notification.id;
+
+            const isBuy = notification.message.toLowerCase().includes('bought');
+            const isSell = notification.message.toLowerCase().includes('sold');
+            const indicator = isBuy ? '🟢' : (isSell ? '🔴' : '');
+
+            let messageHtml = `
+                <div class="message-content">
+                    <div class="message-text">
+                        ${formatMessage(notification.message, notification.ticker, notification.trader)}
+                    </div>
+            `;
+
+            if (notification.contractAddress) {
+                messageHtml += `
+                    <div class="contract-address">
+                        <span class="contract-icon">📄</span>
+                        <span>Contract: <span class="contract-address-text">${notification.contractAddress}</span></span>
+                    </div>
+                    <a href="https://dexscreener.com/solana/${notification.contractAddress}"
+                       target="_blank"
+                       class="dex-link">
+                        🔗 DEXScreener
+                    </a>
+                `;
+            }
+
+            messageHtml += `
+                    <div class="message-meta">
+                        <span class="message-time">${formatTime(notification.sentAt)}</span>
+                        <span class="recipient-count">📤 ${notification.recipientCount} recipient${notification.recipientCount !== 1 ? 's' : ''}</span>
+                    </div>
+                </div>
+            `;
+
+            messageDiv.innerHTML = messageHtml;
+            return messageDiv;
+        }
+
+        function formatMessage(message, ticker, trader) {
+            let formatted = message;
+
+            // Highlight ticker
+            if (ticker) {
+                const tickerRegex = new RegExp(`\\b${ticker}\\b`, 'gi');
+                formatted = formatted.replace(tickerRegex, `<span class="message-ticker">${ticker}</span>`);
+            }
+
+            // Highlight trader (with @ symbol)
+            if (trader) {
+                const traderRegex = new RegExp(`@${trader}`, 'gi');
+                formatted = formatted.replace(traderRegex,
+                    `<a href="https://x.com/${trader}" target="_blank" class="message-trader">@${trader}</a>`);
+            }
+
+            // Highlight buy/sell
+            formatted = formatted.replace(/\bbought\b/gi, '<span class="buy-indicator">bought</span>');
+            formatted = formatted.replace(/\bsold\b/gi, '<span class="sell-indicator">sold</span>');
+
+            return formatted;
+        }
+
+        function formatTime(sentAt) {
+            const date = new Date(sentAt);
+            const now = new Date();
+            const diffMs = now - date;
+            const diffMins = Math.floor(diffMs / 60000);
+            const diffHours = Math.floor(diffMs / 3600000);
+
+            if (diffMins < 1) return 'just now';
+            if (diffMins < 60) return `${diffMins}m ago`;
+            if (diffHours < 24) return `${diffHours}h ago`;
+
+            return date.toLocaleTimeString('en-US', {
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: false
+            });
+        }
+
+        function showRefreshIndicator(count) {
+            const indicator = document.createElement('div');
+            indicator.className = 'refresh-indicator';
+            indicator.textContent = `${count} new notification${count !== 1 ? 's' : ''}`;
+            document.body.appendChild(indicator);
+
+            setTimeout(() => {
+                indicator.remove();
+            }, 3000);
+        }
+
+        // Initial load
+        fetchNotifications();
+
+        // Auto-refresh every 5 seconds
+        setInterval(fetchNotifications, REFRESH_INTERVAL);
+    </script>
+</body>
+</html>
