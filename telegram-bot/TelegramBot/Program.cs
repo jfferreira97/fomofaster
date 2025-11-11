@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using TelegramBot.Data;
 using TelegramBot.Models;
 using TelegramBot.Services;
+using TelegramBot.Hubs;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -18,6 +19,7 @@ builder.Logging.AddSimpleConsole(options =>
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+builder.Services.AddSignalR();
 
 // Add database
 builder.Services.AddDbContext<AppDbContext>(options =>
@@ -71,6 +73,9 @@ app.UseStaticFiles();
 app.UseCors("AllowAll");
 app.UseAuthorization();
 app.MapControllers();
+
+// Map SignalR hub
+app.MapHub<DashboardHub>("/dashboardHub");
 
 // Dashboard endpoint
 app.MapGet("/dashboard", async context =>

@@ -3,6 +3,8 @@ using TelegramBot.Data;
 using Microsoft.Extensions.Options;
 using Telegram.Bot;
 using Telegram.Bot.Types.Enums;
+using Microsoft.AspNetCore.SignalR;
+using TelegramBot.Hubs;
 
 namespace TelegramBot.Services;
 
@@ -12,15 +14,18 @@ public class TelegramService : ITelegramService
     private readonly TelegramBotClient? _botClient;
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<TelegramService> _logger;
+    private readonly IHubContext<DashboardHub> _hubContext;
 
     public TelegramService(
         IOptions<TelegramSettings> settings,
         IServiceProvider serviceProvider,
-        ILogger<TelegramService> logger)
+        ILogger<TelegramService> logger,
+        IHubContext<DashboardHub> hubContext)
     {
         _settings = settings.Value;
         _serviceProvider = serviceProvider;
         _logger = logger;
+        _hubContext = hubContext;
 
         if (!string.IsNullOrEmpty(_settings.BotToken))
         {
@@ -163,6 +168,19 @@ public class TelegramService : ITelegramService
 
         // Save all SentMessage records in one batch
         await dbContext.SaveChangesAsync();
+
+        // Broadcast notification to dashboard via SignalR
+        await _hubContext.Clients.All.SendAsync("ReceiveNotification", new
+        {
+            id = notificationRecord.Id,
+            message = notificationRecord.Message,
+            ticker = notificationRecord.Ticker,
+            trader = notificationRecord.Trader,
+            hasCA = notificationRecord.HasCA,
+            contractAddress = notificationRecord.ContractAddress,
+            sentAt = notificationRecord.SentAt,
+            recipientCount = successCount
+        });
 
         _logger.LogInformation("✅ Notification sent to {Success}/{Total} users ({Failed} failed)",
             successCount, users.Count, failCount);
