@@ -14,6 +14,7 @@ public class AppDbContext : DbContext
     public DbSet<UserTrader> UserTraders { get; set; }
     public DbSet<Notification> Notifications { get; set; }
     public DbSet<SentMessage> SentMessages { get; set; }
+    public DbSet<KnownToken> KnownTokens { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -98,6 +99,16 @@ public class AppDbContext : DbContext
                 .WithMany()
                 .HasForeignKey(e => e.NotificationId)
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<KnownToken>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.HasIndex(e => e.Symbol);
+            entity.Property(e => e.Symbol).IsRequired().HasMaxLength(50);
+            entity.Property(e => e.ContractAddress).IsRequired().HasMaxLength(100);
+            entity.Property(e => e.MinMarketCap).IsRequired();
+            entity.Property(e => e.Chain).HasConversion<string>(); // Store enum as string in SQLite
         });
     }
 }

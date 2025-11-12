@@ -1,5 +1,7 @@
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using TelegramBot.Data;
 using TelegramBot.Models;
 using TelegramBot.Services;
 
@@ -12,18 +14,64 @@ public class NotificationsController : ControllerBase
     private readonly ITelegramService _telegramService;
     private readonly ISolanaService _solanaService;
     private readonly ITraderService _traderService;
+    private readonly AppDbContext _dbContext;
     private readonly ILogger<NotificationsController> _logger;
+
+    // Cache of known token symbols - loaded once and refreshed on table updates
+    private static HashSet<string>? _knownTokenSymbolsCache;
+    private static Dictionary<string, KnownToken>? _knownTokensCache;
+    private static readonly SemaphoreSlim _cacheLock = new SemaphoreSlim(1, 1);
 
     public NotificationsController(
         ITelegramService telegramService,
         ISolanaService solanaService,
         ITraderService traderService,
+        AppDbContext dbContext,
         ILogger<NotificationsController> logger)
     {
         _telegramService = telegramService;
         _solanaService = solanaService;
         _traderService = traderService;
+        _dbContext = dbContext;
         _logger = logger;
+    }
+
+    // Public method to refresh cache (called when KnownTokens table is updated)
+    public static void RefreshKnownTokensCache()
+    {
+        _knownTokenSymbolsCache = null;
+        _knownTokensCache = null;
+    }
+
+    private async Task<Dictionary<string, KnownToken>> GetKnownTokensCacheAsync()
+    {
+        if (_knownTokensCache != null && _knownTokenSymbolsCache != null)
+        {
+            return _knownTokensCache;
+        }
+
+        await _cacheLock.WaitAsync();
+        try
+        {
+            // Double-check after acquiring lock
+            if (_knownTokensCache != null && _knownTokenSymbolsCache != null)
+            {
+                return _knownTokensCache;
+            }
+
+            // Load from database
+            var knownTokens = await _dbContext.KnownTokens.ToListAsync();
+            _knownTokensCache = knownTokens.ToDictionary(kt => kt.Symbol, kt => kt);
+            _knownTokenSymbolsCache = knownTokens.Select(kt => kt.Symbol).ToHashSet();
+
+            _logger.LogInformation("Loaded {Count} known tokens into cache", knownTokens.Count);
+
+            return _knownTokensCache;
+        }
+        finally
+        {
+            _cacheLock.Release();
+        }
     }
 
     [HttpPost]
@@ -78,8 +126,47 @@ public class NotificationsController : ControllerBase
             {
                 _logger.LogInformation("Extracted ticker: {Ticker}", ticker);
 
-                // Try to resolve contract address from Solana
-                contractAddress = await _solanaService.GetContractAddressByTickerAsync(ticker);
+                // Load known tokens cache
+                var knownTokensCache = await GetKnownTokensCacheAsync();
+
+                // Check if this ticker is in the known tokens list
+                if (knownTokensCache.ContainsKey(ticker))
+                {
+                    _logger.LogInformation("Ticker {Ticker} found in known tokens list, checking market cap", ticker);
+
+                    // Extract market cap from the notification
+                    long? marketCap = ExtractMarketCap(noti.Message);
+
+                    if (marketCap.HasValue)
+                    {
+                        var knownToken = knownTokensCache[ticker];
+                        _logger.LogInformation("Extracted market cap: ${0:N0}, Min expected: ${1:N0}", marketCap.Value, knownToken.MinMarketCap);
+
+                        // Check if market cap matches the expected range
+                        if (marketCap.Value >= knownToken.MinMarketCap)
+                        {
+                            _logger.LogInformation("✅ Market cap matches! Using hardcoded contract: {Address}", knownToken.ContractAddress);
+                            contractAddress = knownToken.ContractAddress;
+                        }
+                        else
+                        {
+                            _logger.LogInformation("⚠️  Market cap too low (${0:N0} < ${1:N0}), falling back to aggregator wallet lookup", marketCap.Value, knownToken.MinMarketCap);
+                            contractAddress = await _solanaService.GetContractAddressByTickerAsync(ticker);
+                        }
+                    }
+                    else
+                    {
+                        // No market cap found (thesis notifications don't have MC)
+                        _logger.LogInformation("No market cap found in message, using aggregator wallet lookup");
+                        contractAddress = await _solanaService.GetContractAddressByTickerAsync(ticker);
+                    }
+                }
+                else
+                {
+                    // Not a known token, use normal lookup (no need to extract MC)
+                    _logger.LogInformation("Ticker not in known tokens list, using aggregator wallet lookup");
+                    contractAddress = await _solanaService.GetContractAddressByTickerAsync(ticker);
+                }
 
                 if (!string.IsNullOrEmpty(contractAddress))
                 {
@@ -182,5 +269,46 @@ public class NotificationsController : ControllerBase
             return match.Groups[1].Value; // Returns "0xuberM"
         }
         return null;
+    }
+
+    private long? ExtractMarketCap(string message)
+    {
+        // Format: "$XXm MC" or "$XX.XXb MC" or "$XXk MC"
+        // Example: "PUMP at $1.44b MC 🟢 trader bought $1000"
+
+        // Find " MC" in the message
+        int mcIndex = message.IndexOf(" MC");
+        if (mcIndex == -1) return null;
+
+        // Work backwards to find the $ sign
+        int dollarIndex = message.LastIndexOf('$', mcIndex);
+        if (dollarIndex == -1) return null;
+
+        // Extract the string between $ and MC (e.g., "2.60m")
+        string mcString = message.Substring(dollarIndex + 1, mcIndex - dollarIndex - 1).Trim();
+
+        if (mcString.Length == 0) return null;
+
+        // Get the last character (unit: k, m, or b)
+        char unit = mcString[mcString.Length - 1];
+
+        // Get the number part (everything except last char)
+        string numberPart = mcString.Substring(0, mcString.Length - 1);
+
+        // Parse the number
+        if (!double.TryParse(numberPart, out double value)) return null;
+
+        // Multiply by unit
+        long multiplier = unit switch
+        {
+            'k' => 1_000,
+            'm' => 1_000_000,
+            'b' => 1_000_000_000,
+            _ => 0
+        };
+
+        if (multiplier == 0) return null;
+
+        return (long)(value * multiplier);
     }
 }

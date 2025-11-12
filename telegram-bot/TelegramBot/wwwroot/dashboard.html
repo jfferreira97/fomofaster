@@ -619,15 +619,22 @@
         function formatMessage(message, ticker, trader) {
             let formatted = message;
 
+            // Escape special regex characters
+            function escapeRegex(str) {
+                return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            }
+
             // Highlight ticker
             if (ticker) {
-                const tickerRegex = new RegExp(`\\b${ticker}\\b`, 'gi');
+                const escapedTicker = escapeRegex(ticker);
+                const tickerRegex = new RegExp(`\\b${escapedTicker}\\b`, 'gi');
                 formatted = formatted.replace(tickerRegex, `<span class="message-ticker">${ticker}</span>`);
             }
 
             // Highlight trader (with @ symbol)
             if (trader) {
-                const traderRegex = new RegExp(`@${trader}`, 'gi');
+                const escapedTrader = escapeRegex(trader);
+                const traderRegex = new RegExp(`@${escapedTrader}`, 'gi');
                 formatted = formatted.replace(traderRegex,
                     `<a href="https://x.com/${trader}" target="_blank" class="message-trader">@${trader}</a>`);
             }
