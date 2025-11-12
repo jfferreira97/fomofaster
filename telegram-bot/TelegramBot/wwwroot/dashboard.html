@@ -777,7 +777,7 @@
 
             // Get the message content div and add edited class for lighter blue styling
             const messageContent = messageBubble.querySelector('.message-content');
-            if (messageContent && notification.isEdited) {
+            if (messageContent && (notification.isManuallyEdited || notification.isSystemEdited)) {
                 messageContent.classList.add('edited');
             }
 
@@ -794,18 +794,22 @@
 
             // Update timestamp to show both original and edited times (Telegram fidelity)
             const messageTime = messageBubble.querySelector('.message-time');
-            if (messageTime && notification.isEdited && notification.editedAt) {
+            if (messageTime && (notification.isManuallyEdited || notification.isSystemEdited) && notification.editedAt) {
                 messageTime.textContent = `${formatTime(notification.sentAt)} (edited ${formatTime(notification.editedAt)})`;
             }
 
             // Update metadata section
             const messageMetadata = messageBubble.querySelector('.message-metadata');
             if (messageMetadata) {
+                let editBadge = '<span>• Not edited</span>';
+                if (notification.isManuallyEdited) {
+                    editBadge = `<span class="edited-badge">• Manually Edited ${notification.editedAt ? 'at ' + formatTime(notification.editedAt) : ''}</span>`;
+                } else if (notification.isSystemEdited) {
+                    editBadge = `<span class="edited-badge">• System Edited ${notification.editedAt ? 'at ' + formatTime(notification.editedAt) : ''}</span>`;
+                }
                 messageMetadata.innerHTML = `
                     <span>Sent to ${notification.recipientCount} of ${notification.totalUsers} users</span>
-                    ${notification.isEdited
-                        ? `<span class="edited-badge">• Edited ${notification.editedAt ? 'at ' + formatTime(notification.editedAt) : ''}</span>`
-                        : '<span>• Not edited</span>'}
+                    ${editBadge}
                     <span class="edit-ca-btn" onclick="toggleEditForm(${notification.id})">• Edit CA</span>
                 `;
             }
@@ -823,7 +827,7 @@
             const indicator = isBuy ? '🟢' : (isSell ? '🔴' : '');
 
             // Add edited class for lighter blue styling
-            const editedClass = notification.isEdited ? ' edited' : '';
+            const editedClass = (notification.isManuallyEdited || notification.isSystemEdited) ? ' edited' : '';
 
             let messageHtml = `
                 <div class="message-content${editedClass}">
@@ -842,7 +846,7 @@
 
             // Format timestamp: show both original and edited times (Telegram fidelity)
             let timestampText = formatTime(notification.sentAt);
-            if (notification.isEdited && notification.editedAt) {
+            if ((notification.isManuallyEdited || notification.isSystemEdited) && notification.editedAt) {
                 timestampText = `${formatTime(notification.sentAt)} (edited ${formatTime(notification.editedAt)})`;
             }
 
@@ -853,8 +857,10 @@
                 </div>
                 <div class="message-metadata">
                     <span>Sent to ${notification.recipientCount} of ${notification.totalUsers} users</span>
-                    ${notification.isEdited
-                        ? `<span class="edited-badge">• Edited ${notification.editedAt ? 'at ' + formatTime(notification.editedAt) : ''}</span>`
+                    ${notification.isManuallyEdited
+                        ? `<span class="edited-badge">• Manually Edited ${notification.editedAt ? 'at ' + formatTime(notification.editedAt) : ''}</span>`
+                        : notification.isSystemEdited
+                        ? `<span class="edited-badge">• System Edited ${notification.editedAt ? 'at ' + formatTime(notification.editedAt) : ''}</span>`
                         : '<span>• Not edited</span>'}
                     <span class="edit-ca-btn" onclick="toggleEditForm(${notification.id})">• Edit CA</span>
                 </div>

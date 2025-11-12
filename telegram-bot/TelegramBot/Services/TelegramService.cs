@@ -163,7 +163,8 @@ public class TelegramService : ITelegramService
                     ChatId = user.ChatId,
                     MessageId = sentMessage.MessageId,
                     SentAt = DateTime.UtcNow,
-                    IsEdited = false,
+                    IsManuallyEdited = false,
+                    IsSystemEdited = false,
                     EditedAt = null
                 };
                 dbContext.SentMessages.Add(sentMessageRecord);
@@ -196,7 +197,8 @@ public class TelegramService : ITelegramService
             sentAt = notificationRecord.SentAt,
             recipientCount = successCount,
             totalUsers = totalActiveUsers.Count,
-            isEdited = false,
+            isManuallyEdited = false,
+            isSystemEdited = false,
             editedAt = (DateTime?)null
         });
 
@@ -313,8 +315,8 @@ public class TelegramService : ITelegramService
                     disableWebPagePreview: true
                 );
 
-                // Update SentMessage record
-                sentMessage.IsEdited = true;
+                // Update SentMessage record (manual edit via API)
+                sentMessage.IsManuallyEdited = true;
                 sentMessage.EditedAt = DateTime.UtcNow;
                 successCount++;
             }
@@ -350,7 +352,8 @@ public class TelegramService : ITelegramService
             sentAt = notification.SentAt,
             recipientCount = successCount,
             totalUsers = totalActiveUsers.Count,
-            isEdited = true,
+            isManuallyEdited = true,
+            isSystemEdited = false,
             editedAt = DateTime.UtcNow
         });
 

@@ -7,7 +7,8 @@ public class SentMessage
     public long ChatId { get; set; }
     public int MessageId { get; set; }
     public DateTime SentAt { get; set; }
-    public bool IsEdited { get; set; }
+    public bool IsManuallyEdited { get; set; }
+    public bool IsSystemEdited { get; set; }
     public DateTime? EditedAt { get; set; }
 
     // Navigation property

@@ -86,7 +86,8 @@ public class AppDbContext : DbContext
             entity.Property(e => e.ChatId).IsRequired();
             entity.Property(e => e.MessageId).IsRequired();
             entity.Property(e => e.SentAt).IsRequired();
-            entity.Property(e => e.IsEdited).IsRequired();
+            entity.Property(e => e.IsManuallyEdited).IsRequired();
+            entity.Property(e => e.IsSystemEdited).IsRequired();
 
             // Index for finding messages by NotificationId (for editing)
             entity.HasIndex(e => e.NotificationId);

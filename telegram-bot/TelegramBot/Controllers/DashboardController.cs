@@ -51,8 +51,9 @@ public class DashboardController : ControllerBase
                 {
                     NotificationId = g.Key,
                     RecipientCount = g.Count(),
-                    IsEdited = g.Any(sm => sm.IsEdited),
-                    EditedAt = g.Where(sm => sm.IsEdited && sm.EditedAt != null)
+                    IsManuallyEdited = g.Any(sm => sm.IsManuallyEdited),
+                    IsSystemEdited = g.Any(sm => sm.IsSystemEdited),
+                    EditedAt = g.Where(sm => (sm.IsManuallyEdited || sm.IsSystemEdited) && sm.EditedAt != null)
                                 .Select(sm => sm.EditedAt)
                                 .Max()
                 })
@@ -76,7 +77,8 @@ public class DashboardController : ControllerBase
                         contractAddress = n.ContractAddress,
                         sentAt = n.SentAt,
                         recipientCount = sentData?.RecipientCount ?? 0,
-                        isEdited = sentData?.IsEdited ?? false,
+                        isManuallyEdited = sentData?.IsManuallyEdited ?? false,
+                        isSystemEdited = sentData?.IsSystemEdited ?? false,
                         editedAt = sentData?.EditedAt,
                         totalUsers = totalUsers
                     };
