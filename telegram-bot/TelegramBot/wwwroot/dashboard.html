@@ -329,6 +329,198 @@
         ::-webkit-scrollbar-thumb:hover {
             background: #3d6a99;
         }
+
+        /* Tab Navigation */
+        .tabs {
+            display: flex;
+            background-color: #17212b;
+            border-bottom: 1px solid #0e1621;
+        }
+
+        .tab {
+            padding: 12px 24px;
+            cursor: pointer;
+            font-size: 14px;
+            color: #8a96a0;
+            border-bottom: 2px solid transparent;
+            transition: all 0.2s;
+        }
+
+        .tab:hover {
+            background-color: #1a2633;
+            color: #ffffff;
+        }
+
+        .tab.active {
+            color: #ffffff;
+            border-bottom-color: #5288c1;
+        }
+
+        .tab-content {
+            display: none;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        .tab-content.active {
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Settings Page */
+        .settings-container {
+            padding: 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .settings-section {
+            background-color: #182533;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .settings-section-title {
+            font-size: 18px;
+            font-weight: 500;
+            margin-bottom: 16px;
+            color: #ffffff;
+        }
+
+        .form-group {
+            margin-bottom: 16px;
+        }
+
+        .form-label {
+            display: block;
+            font-size: 14px;
+            color: #8a96a0;
+            margin-bottom: 6px;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 10px 12px;
+            background-color: #0e1621;
+            border: 1px solid #2b5278;
+            border-radius: 6px;
+            color: #ffffff;
+            font-size: 14px;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: #5288c1;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+
+        .btn-primary {
+            background-color: #5288c1;
+            color: #ffffff;
+        }
+
+        .btn-primary:hover {
+            background-color: #4a7bb0;
+        }
+
+        .btn-danger {
+            background-color: #d9534f;
+            color: #ffffff;
+        }
+
+        .btn-danger:hover {
+            background-color: #c9302c;
+        }
+
+        .btn-secondary {
+            background-color: #2b5278;
+            color: #ffffff;
+        }
+
+        .btn-secondary:hover {
+            background-color: #3d6a99;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 12px;
+        }
+
+        th, td {
+            text-align: left;
+            padding: 12px;
+            border-bottom: 1px solid #2b5278;
+        }
+
+        th {
+            font-size: 13px;
+            color: #8a96a0;
+            font-weight: 500;
+        }
+
+        td {
+            font-size: 14px;
+            color: #e8e9ea;
+        }
+
+        tr:hover {
+            background-color: #1a2633;
+        }
+
+        .token-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.7);
+        }
+
+        .modal-content {
+            background-color: #182533;
+            margin: 10% auto;
+            padding: 24px;
+            border-radius: 12px;
+            width: 90%;
+            max-width: 500px;
+        }
+
+        .modal-title {
+            font-size: 18px;
+            font-weight: 500;
+            margin-bottom: 16px;
+            color: #ffffff;
+        }
+
+        .modal-close {
+            color: #8a96a0;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .modal-close:hover {
+            color: #ffffff;
+        }
     </style>
 </head>
 <body>
@@ -340,8 +532,124 @@
             </div>
         </div>
 
-        <div class="chat-area" id="chatArea">
-            <div class="loading" id="loading">Loading notifications...</div>
+        <!-- Tabs -->
+        <div class="tabs">
+            <div class="tab active" onclick="switchTab('notifications')">Notifications</div>
+            <div class="tab" onclick="switchTab('settings')">Settings</div>
+        </div>
+
+        <!-- Notifications Tab -->
+        <div id="notifications-tab" class="tab-content active">
+            <div class="chat-area" id="chatArea">
+                <div class="loading" id="loading">Loading notifications...</div>
+            </div>
+        </div>
+
+        <!-- Settings Tab -->
+        <div id="settings-tab" class="tab-content">
+            <div class="chat-area" style="overflow-y: auto;">
+                <div class="settings-container">
+                    <!-- Add Traders Section -->
+                    <div class="settings-section">
+                        <div class="settings-section-title">Add Traders</div>
+                        <div class="form-group">
+                            <label class="form-label">Trader Handles (one per line, @ optional)</label>
+                            <textarea id="traderHandles" class="form-input" rows="5" placeholder="0xuberM&#10;frankdegods&#10;@trader123"></textarea>
+                        </div>
+                        <button class="btn btn-primary" onclick="addTraders()">Add Traders</button>
+                    </div>
+
+                    <!-- Known Tokens Section -->
+                    <div class="settings-section">
+                        <div class="settings-section-title">Known Tokens</div>
+                        <button class="btn btn-secondary" onclick="showAddTokenModal()" style="margin-bottom: 12px;">Add New Token</button>
+                        <table id="knownTokensTable">
+                            <thead>
+                                <tr>
+                                    <th>Symbol</th>
+                                    <th>Contract Address</th>
+                                    <th>Min Market Cap</th>
+                                    <th>Chain</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="knownTokensBody">
+                                <tr><td colspan="5" style="text-align: center; color: #8a96a0;">Loading...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Test Notification Section -->
+                    <div class="settings-section">
+                        <div class="settings-section-title">Test Notification</div>
+                        <p style="color: #8a96a0; margin-bottom: 12px;">Send a test notification to the same endpoint that android-listener uses</p>
+                        <div class="form-group">
+                            <label class="form-label">Notification Message</label>
+                            <textarea id="testNotificationMessage" class="form-input" rows="3" placeholder="PUMP at $1.44b MC 🟢 @frankdegods bought $9,955.55"></textarea>
+                        </div>
+                        <button class="btn btn-primary" onclick="showTestNotificationConfirm()">Send Test Notification</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add/Edit Token Modal -->
+    <div id="tokenModal" class="modal">
+        <div class="modal-content">
+            <span class="modal-close" onclick="closeTokenModal()">&times;</span>
+            <div class="modal-title" id="tokenModalTitle">Add New Token</div>
+            <form id="tokenForm" onsubmit="saveToken(event)">
+                <input type="hidden" id="tokenId">
+                <div class="form-group">
+                    <label class="form-label">Symbol</label>
+                    <input type="text" id="tokenSymbol" class="form-input" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Contract Address</label>
+                    <input type="text" id="tokenContract" class="form-input" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Min Market Cap <span id="mcFormatted" style="color: #5288c1; margin-left: 8px;"></span></label>
+                    <input type="number" id="tokenMinMC" class="form-input" required step="1000" oninput="updateMCFormat()">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Chain (optional)</label>
+                    <select id="tokenChain" class="form-input">
+                        <option value="">None</option>
+                        <option value="SOL">Solana</option>
+                        <option value="BASE">Base</option>
+                        <option value="BNB">BNB Chain</option>
+                    </select>
+                </div>
+                <button type="submit" class="btn btn-primary">Save Token</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Delete Confirmation Modal -->
+    <div id="deleteModal" class="modal">
+        <div class="modal-content">
+            <span class="modal-close" onclick="closeDeleteModal()">&times;</span>
+            <div class="modal-title">Confirm Delete</div>
+            <p style="color: #8a96a0; margin-bottom: 16px;">Type "delete" to confirm deletion of this token:</p>
+            <div class="form-group">
+                <input type="text" id="deleteConfirm" class="form-input" placeholder="Type 'delete'">
+            </div>
+            <button class="btn btn-danger" onclick="confirmDelete()">Delete Token</button>
+        </div>
+    </div>
+
+    <!-- Test Notification Confirmation Modal -->
+    <div id="testNotificationModal" class="modal">
+        <div class="modal-content">
+            <span class="modal-close" onclick="closeTestNotificationModal()">&times;</span>
+            <div class="modal-title">Confirm Send Test Notification</div>
+            <p style="color: #8a96a0; margin-bottom: 16px;">This will send the test notification to all active Telegram users. Type "send" to confirm:</p>
+            <div class="form-group">
+                <input type="text" id="testNotificationConfirm" class="form-input" placeholder="Type 'send'">
+            </div>
+            <button class="btn btn-primary" onclick="confirmSendTestNotification()">Send Test Notification</button>
         </div>
     </div>
 
@@ -663,6 +971,278 @@
                 indicator.remove();
             }, 3000);
         }
+
+        // Tab switching
+        function switchTab(tabName) {
+            // Update tab buttons
+            document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
+            event.target.classList.add('active');
+
+            // Update tab content
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+            document.getElementById(tabName + '-tab').classList.add('active');
+
+            // Load known tokens when switching to settings
+            if (tabName === 'settings') {
+                loadKnownTokens();
+            }
+        }
+
+        // Add Traders
+        async function addTraders() {
+            const textarea = document.getElementById('traderHandles');
+            const handles = textarea.value.split('\n')
+                .map(h => h.trim())
+                .filter(h => h.length > 0);
+
+            if (handles.length === 0) {
+                alert('Please enter at least one trader handle');
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/traders/bulk-add', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ handles })
+                });
+
+                const result = await response.json();
+                if (response.ok) {
+                    alert(`Successfully added ${result.added} trader(s)`);
+                    textarea.value = '';
+                } else {
+                    alert('Failed to add traders: ' + result.message);
+                }
+            } catch (error) {
+                console.error('Error adding traders:', error);
+                alert('Error adding traders');
+            }
+        }
+
+        // Known Tokens Management
+        let deleteTokenId = null;
+
+        async function loadKnownTokens() {
+            try {
+                const response = await fetch('/api/knowntokens');
+                const tokens = await response.json();
+
+                const tbody = document.getElementById('knownTokensBody');
+                if (tokens.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: #8a96a0;">No known tokens</td></tr>';
+                    return;
+                }
+
+                tbody.innerHTML = tokens.map(token => `
+                    <tr>
+                        <td>${token.symbol}</td>
+                        <td>${token.contractAddress.substring(0, 12)}...</td>
+                        <td>$${(token.minMarketCap / 1000000).toFixed(2)}M</td>
+                        <td>${token.chain || 'N/A'}</td>
+                        <td class="token-actions">
+                            <button class="btn btn-secondary" onclick="editToken(${token.id})">Edit</button>
+                            <button class="btn btn-danger" onclick="deleteToken(${token.id})">Delete</button>
+                        </td>
+                    </tr>
+                `).join('');
+            } catch (error) {
+                console.error('Error loading known tokens:', error);
+            }
+        }
+
+        function formatMarketCap(value) {
+            if (!value || value == 0) return '';
+
+            if (value >= 1_000_000_000) {
+                return `($${(value / 1_000_000_000).toFixed(2)}b)`;
+            } else if (value >= 1_000_000) {
+                return `($${(value / 1_000_000).toFixed(2)}m)`;
+            } else if (value >= 1_000) {
+                return `($${(value / 1_000).toFixed(2)}k)`;
+            }
+            return `($${value})`;
+        }
+
+        function updateMCFormat() {
+            const input = document.getElementById('tokenMinMC');
+            const formatted = document.getElementById('mcFormatted');
+            formatted.textContent = formatMarketCap(parseInt(input.value));
+        }
+
+        function showAddTokenModal() {
+            document.getElementById('tokenModalTitle').textContent = 'Add New Token';
+            document.getElementById('tokenForm').reset();
+            document.getElementById('tokenId').value = '';
+            document.getElementById('mcFormatted').textContent = '';
+            document.getElementById('tokenModal').style.display = 'block';
+        }
+
+        async function editToken(id) {
+            try {
+                const response = await fetch(`/api/knowntokens/${id}`);
+                const token = await response.json();
+
+                document.getElementById('tokenModalTitle').textContent = 'Edit Token';
+                document.getElementById('tokenId').value = token.id;
+                document.getElementById('tokenSymbol').value = token.symbol;
+                document.getElementById('tokenContract').value = token.contractAddress;
+                document.getElementById('tokenMinMC').value = token.minMarketCap;
+                document.getElementById('tokenChain').value = token.chain || '';
+                updateMCFormat(); // Show formatted value
+                document.getElementById('tokenModal').style.display = 'block';
+            } catch (error) {
+                console.error('Error loading token:', error);
+                alert('Error loading token');
+            }
+        }
+
+        async function saveToken(event) {
+            event.preventDefault();
+
+            const id = document.getElementById('tokenId').value;
+            const token = {
+                Symbol: document.getElementById('tokenSymbol').value.toUpperCase(),
+                ContractAddress: document.getElementById('tokenContract').value,
+                MinMarketCap: parseInt(document.getElementById('tokenMinMC').value),
+                Chain: document.getElementById('tokenChain').value || null
+            };
+
+            try {
+                const url = id ? `/api/knowntokens/${id}` : '/api/knowntokens';
+                const method = id ? 'PUT' : 'POST';
+
+                console.log('Sending token:', token);
+
+                const response = await fetch(url, {
+                    method,
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(token)
+                });
+
+                if (response.ok) {
+                    closeTokenModal();
+                    loadKnownTokens();
+                    alert(id ? 'Token updated successfully' : 'Token added successfully');
+                } else {
+                    const errorText = await response.text();
+                    console.error('Server response:', errorText);
+                    try {
+                        const error = JSON.parse(errorText);
+                        alert('Error: ' + (error.message || JSON.stringify(error)));
+                    } catch {
+                        alert('Error ' + response.status + ': ' + errorText);
+                    }
+                }
+            } catch (error) {
+                console.error('Error saving token:', error);
+                alert('Error saving token');
+            }
+        }
+
+        function closeTokenModal() {
+            document.getElementById('tokenModal').style.display = 'none';
+        }
+
+        function deleteToken(id) {
+            deleteTokenId = id;
+            document.getElementById('deleteConfirm').value = '';
+            document.getElementById('deleteModal').style.display = 'block';
+        }
+
+        async function confirmDelete() {
+            const confirmText = document.getElementById('deleteConfirm').value;
+            if (confirmText.toLowerCase() !== 'delete') {
+                alert('Please type "delete" to confirm');
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/knowntokens/${deleteTokenId}`, {
+                    method: 'DELETE'
+                });
+
+                if (response.ok) {
+                    closeDeleteModal();
+                    loadKnownTokens();
+                    alert('Token deleted successfully');
+                } else {
+                    alert('Error deleting token');
+                }
+            } catch (error) {
+                console.error('Error deleting token:', error);
+                alert('Error deleting token');
+            }
+        }
+
+        function closeDeleteModal() {
+            document.getElementById('deleteModal').style.display = 'none';
+            deleteTokenId = null;
+        }
+
+        // Test Notification Functions
+        function showTestNotificationConfirm() {
+            const message = document.getElementById('testNotificationMessage').value.trim();
+            if (!message) {
+                alert('Please enter a notification message');
+                return;
+            }
+            document.getElementById('testNotificationConfirm').value = '';
+            document.getElementById('testNotificationModal').style.display = 'block';
+        }
+
+        async function confirmSendTestNotification() {
+            const confirmText = document.getElementById('testNotificationConfirm').value;
+            if (confirmText.toLowerCase() !== 'send') {
+                alert('Please type "send" to confirm');
+                return;
+            }
+
+            const message = document.getElementById('testNotificationMessage').value.trim();
+
+            try {
+                const response = await fetch('/api/notifications', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ Message: message })
+                });
+
+                if (response.ok) {
+                    const result = await response.json();
+                    closeTestNotificationModal();
+                    document.getElementById('testNotificationMessage').value = '';
+
+                    // Switch to notifications tab to see the result
+                    document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
+                    document.querySelector('.tab:first-child').classList.add('active');
+                    document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+                    document.getElementById('notifications-tab').classList.add('active');
+                } else {
+                    const error = await response.json();
+                    alert('Error sending test notification: ' + (error.message || 'Unknown error'));
+                }
+            } catch (error) {
+                console.error('Error sending test notification:', error);
+                alert('Error sending test notification');
+            }
+        }
+
+        function closeTestNotificationModal() {
+            document.getElementById('testNotificationModal').style.display = 'none';
+        }
+
+        // Close modals when clicking outside
+        window.onclick = function(event) {
+            if (event.target == document.getElementById('tokenModal')) {
+                closeTokenModal();
+            }
+            if (event.target == document.getElementById('deleteModal')) {
+                closeDeleteModal();
+            }
+            if (event.target == document.getElementById('testNotificationModal')) {
+                closeTestNotificationModal();
+            }
+        };
 
         // Initialize dashboard: load existing notifications and start SignalR
         (async function init() {
