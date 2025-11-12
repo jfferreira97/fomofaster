@@ -84,11 +84,11 @@ public class FomoNotificationListener extends NotificationListenerService {
         // Combine title and text into single message
         String message = title + " " + text;
 
-        // Send to backend immediately
-        sendToBackend(message, timestamp);
+        // Send to backend immediately, pass the notification key for dismissal
+        sendToBackend(message, timestamp, sbn.getKey());
     }
 
-    private void sendToBackend(String message, long timestamp) {
+    private void sendToBackend(String message, long timestamp, String notificationKey) {
         // Reload backend URL in case it changed
         loadBackendUrl();
 
@@ -119,6 +119,7 @@ public class FomoNotificationListener extends NotificationListenerService {
                 public void onFailure(Call call, IOException e) {
                     Log.e(TAG, "Failed to send notification to backend", e);
                     broadcastLogEntry("FAILED", message, "Error: " + e.getMessage());
+                    // Don't dismiss notification on failure - keeps it visible so user knows something went wrong
                 }
 
                 @Override
@@ -131,9 +132,18 @@ public class FomoNotificationListener extends NotificationListenerService {
                     if (response.isSuccessful()) {
                         Log.d(TAG, "Successfully sent to backend: " + response.code());
                         broadcastLogEntry("SUCCESS (" + response.code() + ")", message, responseBody);
+
+                        // Dismiss the notification from Android tray after successful send
+                        try {
+                            cancelNotification(notificationKey);
+                            Log.d(TAG, "Dismissed notification from tray: " + notificationKey);
+                        } catch (Exception e) {
+                            Log.e(TAG, "Failed to dismiss notification", e);
+                        }
                     } else {
                         Log.e(TAG, "Backend responded with error: " + response.code());
                         broadcastLogEntry("ERROR (" + response.code() + ")", message, responseBody);
+                        // Don't dismiss on error response either
                     }
                     response.close();
                 }
