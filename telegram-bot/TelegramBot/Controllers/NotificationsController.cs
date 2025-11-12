@@ -96,6 +96,7 @@ public class NotificationsController : ControllerBase
             string? ticker = null;
             string? trader = null;
             string? contractAddress = null;
+            Chain? chain = null;
 
             // Check if this is a thesis notification
             if (IsThesisNotification(noti.Message))
@@ -145,32 +146,36 @@ public class NotificationsController : ControllerBase
                         // Check if market cap matches the expected range
                         if (marketCap.Value >= knownToken.MinMarketCap)
                         {
-                            _logger.LogInformation("✅ Market cap matches! Using hardcoded contract: {Address}", knownToken.ContractAddress);
+                            _logger.LogInformation("✅ Market cap matches! Using hardcoded contract: {Address} (Chain: {Chain})", knownToken.ContractAddress, knownToken.Chain);
                             contractAddress = knownToken.ContractAddress;
+                            chain = knownToken.Chain;
                         }
                         else
                         {
-                            _logger.LogInformation("⚠️  Market cap too low (${0:N0} < ${1:N0}), falling back to aggregator wallet lookup", marketCap.Value, knownToken.MinMarketCap);
+                            _logger.LogInformation("⚠️  Market cap too low (${0:N0} < ${1:N0}), falling back to aggregator wallet lookup (Solana)", marketCap.Value, knownToken.MinMarketCap);
                             contractAddress = await _solanaService.GetContractAddressByTickerAsync(ticker);
+                            chain = Chain.SOL; // Helius API is Solana-only
                         }
                     }
                     else
                     {
                         // No market cap found (thesis notifications don't have MC)
-                        _logger.LogInformation("No market cap found in message, using aggregator wallet lookup");
+                        _logger.LogInformation("No market cap found in message, using aggregator wallet lookup (Solana)");
                         contractAddress = await _solanaService.GetContractAddressByTickerAsync(ticker);
+                        chain = Chain.SOL; // Helius API is Solana-only
                     }
                 }
                 else
                 {
                     // Not a known token, use normal lookup (no need to extract MC)
-                    _logger.LogInformation("Ticker not in known tokens list, using aggregator wallet lookup");
+                    _logger.LogInformation("Ticker not in known tokens list, using aggregator wallet lookup (Solana)");
                     contractAddress = await _solanaService.GetContractAddressByTickerAsync(ticker);
+                    chain = Chain.SOL; // Helius API is Solana-only
                 }
 
                 if (!string.IsNullOrEmpty(contractAddress))
                 {
-                    _logger.LogInformation("✅ Resolved contract address: {Address}", contractAddress);
+                    _logger.LogInformation("✅ Resolved contract address: {Address} (Chain: {Chain})", contractAddress, chain);
                 }
                 else
                 {
@@ -183,7 +188,7 @@ public class NotificationsController : ControllerBase
             }
 
             // Send to users following this trader (or all if no trader extracted)
-            await _telegramService.SendNotificationToAllUsersAsync(noti, contractAddress, trader, ticker);
+            await _telegramService.SendNotificationToAllUsersAsync(noti, contractAddress, trader, ticker, chain);
 
             return Ok(new
             {

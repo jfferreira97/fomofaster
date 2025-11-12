@@ -51,7 +51,7 @@ public class TelegramService : ITelegramService
         return _botClient != null;
     }
 
-    public async Task SendNotificationToAllUsersAsync(NotificationRequest notification, string? contractAddress = null, string? traderHandle = null, string? ticker = null)
+    public async Task SendNotificationToAllUsersAsync(NotificationRequest notification, string? contractAddress = null, string? traderHandle = null, string? ticker = null, Chain? chain = null)
     {
         if (_botClient == null)
         {
@@ -107,10 +107,19 @@ public class TelegramService : ITelegramService
         string message;
         if (!string.IsNullOrEmpty(contractAddress))
         {
+            // Get chain-specific DEXScreener URL (defaults to Solana if no chain specified)
+            string dexScreenerUrl = (chain ?? Chain.SOL) switch
+            {
+                Chain.SOL => $"https://dexscreener.com/solana/{contractAddress}",
+                Chain.BNB => $"https://dexscreener.com/bsc/{contractAddress}",
+                Chain.BASE => $"https://dexscreener.com/base/{contractAddress}",
+                _ => $"https://dexscreener.com/solana/{contractAddress}"
+            };
+
             message = $@"{processedMessage}
 
 📝 Contract: `{contractAddress}`
-🔗 [DEXScreener](https://dexscreener.com/solana/{contractAddress})";
+🔗 [DEXScreener]({dexScreenerUrl})";
         }
         else
         {
@@ -129,6 +138,7 @@ public class TelegramService : ITelegramService
             Trader = traderHandle,
             HasCA = !string.IsNullOrEmpty(contractAddress),
             ContractAddress = contractAddress,
+            Chain = chain,
             SentAt = DateTime.UtcNow
         };
         dbContext.Notifications.Add(notificationRecord);
@@ -182,6 +192,7 @@ public class TelegramService : ITelegramService
             trader = notificationRecord.Trader,
             hasCA = notificationRecord.HasCA,
             contractAddress = notificationRecord.ContractAddress,
+            chain = notificationRecord.Chain?.ToString(),
             sentAt = notificationRecord.SentAt,
             recipientCount = successCount,
             totalUsers = totalActiveUsers.Count,

@@ -22,6 +22,21 @@ public class TradersController : ControllerBase
         _logger = logger;
     }
 
+    [HttpGet]
+    public async Task<IActionResult> GetAll()
+    {
+        try
+        {
+            var traders = await _traderService.GetAllTradersAsync();
+            return Ok(traders);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting all traders");
+            return StatusCode(500, new { status = "error", message = ex.Message });
+        }
+    }
+
     [HttpPost("follow")]
     public async Task<IActionResult> FollowTrader([FromBody] FollowRequest request)
     {
