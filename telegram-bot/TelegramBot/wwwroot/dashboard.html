@@ -78,38 +78,41 @@
             box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
         }
 
+        .message-content.edited {
+            background-color: #1f3042;
+        }
+
         .message-text {
-            font-size: 14px;
-            line-height: 1.5;
+            font-size: 15px;
+            line-height: 1.35;
             color: #e8e9ea;
-            margin-bottom: 4px;
             word-wrap: break-word;
         }
 
         .message-meta {
             display: flex;
             align-items: center;
-            justify-content: space-between;
+            justify-content: flex-end;
             gap: 8px;
             font-size: 12px;
             color: #6c7883;
-            margin-top: 6px;
+            margin-top: 4px;
         }
 
         .message-time {
-            font-size: 11px;
+            font-size: 12px;
             color: #6c7883;
         }
 
         .message-ticker {
-            display: inline-block;
-            background-color: #2b5278;
-            color: #5ca8e2;
-            padding: 2px 6px;
-            border-radius: 4px;
-            font-size: 12px;
-            font-weight: 600;
-            margin-right: 4px;
+            display: inline;
+            background-color: transparent;
+            color: inherit;
+            padding: 0;
+            border-radius: 0;
+            font-size: inherit;
+            font-weight: normal;
+            margin-right: 0;
         }
 
         .message-trader {
@@ -167,6 +170,96 @@
             font-size: 11px;
             color: #6c7883;
             margin-top: 4px;
+        }
+
+        .message-metadata {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 11px;
+            color: #6c7883;
+            margin-top: 6px;
+            padding-top: 6px;
+            border-top: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .edited-badge {
+            color: #5ca8e2;
+            font-weight: 500;
+        }
+
+        .edit-ca-btn {
+            color: #5ca8e2;
+            cursor: pointer;
+            font-weight: 500;
+        }
+
+        .edit-ca-btn:hover {
+            text-decoration: underline;
+        }
+
+        .edit-ca-form {
+            margin-top: 8px;
+            padding: 8px;
+            background-color: #0e1621;
+            border-radius: 6px;
+            display: none;
+        }
+
+        .edit-ca-form.active {
+            display: block;
+        }
+
+        .edit-ca-form input,
+        .edit-ca-form select {
+            width: 100%;
+            padding: 6px 8px;
+            margin: 4px 0;
+            background-color: #182533;
+            border: 1px solid #2b5278;
+            border-radius: 4px;
+            color: #e8e9ea;
+            font-size: 12px;
+        }
+
+        .edit-ca-form input:focus,
+        .edit-ca-form select:focus {
+            outline: none;
+            border-color: #5ca8e2;
+        }
+
+        .edit-ca-form-buttons {
+            display: flex;
+            gap: 6px;
+            margin-top: 6px;
+        }
+
+        .edit-ca-form button {
+            flex: 1;
+            padding: 6px 12px;
+            border: none;
+            border-radius: 4px;
+            font-size: 12px;
+            cursor: pointer;
+            font-weight: 500;
+        }
+
+        .edit-ca-form .btn-submit {
+            background-color: #5ca8e2;
+            color: #ffffff;
+        }
+
+        .edit-ca-form .btn-submit:hover {
+            background-color: #4a8bbf;
+        }
+
+        .edit-ca-form .btn-cancel {
+            background-color: #2b5278;
+            color: #e8e9ea;
+        }
+
+        .edit-ca-form .btn-cancel:hover {
+            background-color: #3d6a99;
         }
 
         .buy-indicator {
@@ -260,6 +353,18 @@
         let isFirstLoad = true;
         let displayedNotificationIds = new Set();
 
+        // Chain enum to DEXScreener URL mapping (single source of truth)
+        const CHAIN_TO_DEXSCREENER = {
+            'SOL': (ca) => `https://dexscreener.com/solana/${ca}`,
+            'BNB': (ca) => `https://dexscreener.com/bsc/${ca}`,
+            'BASE': (ca) => `https://dexscreener.com/base/${ca}`
+        };
+
+        function getDexScreenerUrl(chain, contractAddress) {
+            const urlBuilder = CHAIN_TO_DEXSCREENER[chain] || CHAIN_TO_DEXSCREENER['SOL'];
+            return urlBuilder(contractAddress);
+        }
+
         // Initialize SignalR connection
         const connection = new signalR.HubConnectionBuilder()
             .withUrl("/dashboardHub")
@@ -270,6 +375,12 @@
         connection.on("ReceiveNotification", (notification) => {
             console.log('📥 Received notification via SignalR:', notification);
             displayNotification(notification);
+        });
+
+        // Listen for notification updates (when CA is edited)
+        connection.on("NotificationUpdated", (notification) => {
+            console.log('🔄 Notification updated via SignalR:', notification);
+            updateNotification(notification);
         });
 
         // Start SignalR connection
@@ -348,6 +459,52 @@
             chatArea.scrollTop = chatArea.scrollHeight;
         }
 
+        function updateNotification(notification) {
+            // Find existing message bubble (maintains timeline position)
+            const messageBubble = document.querySelector(`[data-notification-id="${notification.id}"]`);
+            if (!messageBubble) {
+                console.warn('Message bubble not found for notification:', notification.id);
+                return;
+            }
+
+            // Get the message content div and add edited class for lighter blue styling
+            const messageContent = messageBubble.querySelector('.message-content');
+            if (messageContent && notification.isEdited) {
+                messageContent.classList.add('edited');
+            }
+
+            // Update the message text section with new contract address info
+            const messageText = messageBubble.querySelector('.message-text');
+            if (messageText && notification.contractAddress) {
+                const dexScreenerUrl = getDexScreenerUrl(notification.chain, notification.contractAddress);
+                messageText.innerHTML = `
+                    ${formatMessage(notification.message, notification.ticker, notification.trader)}
+                    <br>📝 Contract: \`${notification.contractAddress}\`
+                    <br>🔗 <a href="${dexScreenerUrl}" target="_blank" class="message-trader">DEXScreener</a>
+                `;
+            }
+
+            // Update timestamp to show both original and edited times (Telegram fidelity)
+            const messageTime = messageBubble.querySelector('.message-time');
+            if (messageTime && notification.isEdited && notification.editedAt) {
+                messageTime.textContent = `${formatTime(notification.sentAt)} (edited ${formatTime(notification.editedAt)})`;
+            }
+
+            // Update metadata section
+            const messageMetadata = messageBubble.querySelector('.message-metadata');
+            if (messageMetadata) {
+                messageMetadata.innerHTML = `
+                    <span>Sent to ${notification.recipientCount} of ${notification.totalUsers} users</span>
+                    ${notification.isEdited
+                        ? `<span class="edited-badge">• Edited ${notification.editedAt ? 'at ' + formatTime(notification.editedAt) : ''}</span>`
+                        : '<span>• Not edited</span>'}
+                    <span class="edit-ca-btn" onclick="toggleEditForm(${notification.id})">• Edit CA</span>
+                `;
+            }
+
+            console.log('✅ Updated notification bubble in-place:', notification.id);
+        }
+
         function createMessageElement(notification) {
             const messageDiv = document.createElement('div');
             messageDiv.className = 'message-bubble';
@@ -357,37 +514,106 @@
             const isSell = notification.message.toLowerCase().includes('sold');
             const indicator = isBuy ? '🟢' : (isSell ? '🔴' : '');
 
+            // Add edited class for lighter blue styling
+            const editedClass = notification.isEdited ? ' edited' : '';
+
             let messageHtml = `
-                <div class="message-content">
+                <div class="message-content${editedClass}">
                     <div class="message-text">
                         ${formatMessage(notification.message, notification.ticker, notification.trader)}
                     </div>
             `;
 
             if (notification.contractAddress) {
+                const dexScreenerUrl = getDexScreenerUrl(notification.chain, notification.contractAddress);
                 messageHtml += `
-                    <div class="contract-address">
-                        <span class="contract-icon">📄</span>
-                        <span>Contract: <span class="contract-address-text">${notification.contractAddress}</span></span>
-                    </div>
-                    <a href="https://dexscreener.com/solana/${notification.contractAddress}"
-                       target="_blank"
-                       class="dex-link">
-                        🔗 DEXScreener
-                    </a>
+                        <br>📝 Contract: \`${notification.contractAddress}\`
+                        <br>🔗 <a href="${dexScreenerUrl}" target="_blank" class="message-trader">DEXScreener</a>
                 `;
+            }
+
+            // Format timestamp: show both original and edited times (Telegram fidelity)
+            let timestampText = formatTime(notification.sentAt);
+            if (notification.isEdited && notification.editedAt) {
+                timestampText = `${formatTime(notification.sentAt)} (edited ${formatTime(notification.editedAt)})`;
             }
 
             messageHtml += `
                     <div class="message-meta">
-                        <span class="message-time">${formatTime(notification.sentAt)}</span>
-                        <span class="recipient-count">📤 ${notification.recipientCount} recipient${notification.recipientCount !== 1 ? 's' : ''}</span>
+                        <span class="message-time">${timestampText}</span>
+                    </div>
+                </div>
+                <div class="message-metadata">
+                    <span>Sent to ${notification.recipientCount} of ${notification.totalUsers} users</span>
+                    ${notification.isEdited
+                        ? `<span class="edited-badge">• Edited ${notification.editedAt ? 'at ' + formatTime(notification.editedAt) : ''}</span>`
+                        : '<span>• Not edited</span>'}
+                    <span class="edit-ca-btn" onclick="toggleEditForm(${notification.id})">• Edit CA</span>
+                </div>
+                <div id="edit-form-${notification.id}" class="edit-ca-form">
+                    <input type="text" id="ca-input-${notification.id}" placeholder="Contract Address" />
+                    <select id="chain-select-${notification.id}">
+                        <option value="SOL">Solana (SOL)</option>
+                        <option value="BNB">BNB Chain (BNB)</option>
+                        <option value="BASE">Base (BASE)</option>
+                    </select>
+                    <div class="edit-ca-form-buttons">
+                        <button class="btn-submit" onclick="submitEditCA(${notification.id})">Save</button>
+                        <button class="btn-cancel" onclick="toggleEditForm(${notification.id})">Cancel</button>
                     </div>
                 </div>
             `;
 
             messageDiv.innerHTML = messageHtml;
             return messageDiv;
+        }
+
+        function toggleEditForm(notificationId) {
+            const form = document.getElementById(`edit-form-${notificationId}`);
+            if (form) {
+                form.classList.toggle('active');
+            }
+        }
+
+        async function submitEditCA(notificationId) {
+            const caInput = document.getElementById(`ca-input-${notificationId}`);
+            const chainSelect = document.getElementById(`chain-select-${notificationId}`);
+
+            const contractAddress = caInput.value.trim();
+            const chain = chainSelect.value;
+
+            if (!contractAddress) {
+                alert('Please enter a contract address');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/api/dashboard/notifications/${notificationId}/edit-ca`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        contractAddress: contractAddress,
+                        chain: chain
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.status === 'success') {
+                    // Close form
+                    toggleEditForm(notificationId);
+                    // Show success indicator
+                    showRefreshIndicator('Updated!');
+                    // Notification will auto-update via SignalR
+                } else {
+                    alert('Error: ' + data.message);
+                }
+            } catch (error) {
+                console.error('Error editing CA:', error);
+                alert('Failed to edit notification');
+            }
         }
 
         function formatMessage(message, ticker, trader) {
@@ -415,20 +641,9 @@
 
         function formatTime(sentAt) {
             const date = new Date(sentAt);
-            const now = new Date();
-            const diffMs = now - date;
-            const diffMins = Math.floor(diffMs / 60000);
-            const diffHours = Math.floor(diffMs / 3600000);
-
-            if (diffMins < 1) return 'just now';
-            if (diffMins < 60) return `${diffMins}m ago`;
-            if (diffHours < 24) return `${diffHours}h ago`;
-
-            return date.toLocaleTimeString('en-US', {
-                hour: '2-digit',
-                minute: '2-digit',
-                hour12: false
-            });
+            const hours = String(date.getHours()).padStart(2, '0');
+            const minutes = String(date.getMinutes()).padStart(2, '0');
+            return `${hours}:${minutes}`;
         }
 
         function showRefreshIndicator(count) {

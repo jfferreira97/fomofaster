@@ -156,6 +156,18 @@ public class SolanaService : ISolanaService
         }
     }
 
+    public void AddToCache(string ticker, string contractAddress)
+    {
+        if (string.IsNullOrEmpty(ticker) || string.IsNullOrEmpty(contractAddress))
+        {
+            _logger.LogWarning("Attempted to add invalid ticker or contract address to cache");
+            return;
+        }
+
+        _tickerCache[ticker] = (contractAddress, DateTime.UtcNow);
+        _logger.LogInformation("➕ Manually added to cache: {Ticker} -> {Address}", ticker, contractAddress);
+    }
+
     private async Task CleanupExpiredCacheEntries()
     {
         while (true)

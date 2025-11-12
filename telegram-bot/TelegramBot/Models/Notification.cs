@@ -8,5 +8,6 @@ public class Notification
     public string? Trader { get; set; }
     public bool HasCA { get; set; }
     public string? ContractAddress { get; set; }
+    public Chain? Chain { get; set; }
     public DateTime SentAt { get; set; }
 }

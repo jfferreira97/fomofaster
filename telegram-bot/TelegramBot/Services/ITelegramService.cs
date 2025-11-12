@@ -8,4 +8,5 @@ public interface ITelegramService
     Task SendTestMessageAsync(long chatId, string message);
     Task<object> GetUpdatesAsync();
     bool IsConfigured();
+    Task EditNotificationMessagesAsync(int notificationId, string contractAddress, Chain chain);
 }
