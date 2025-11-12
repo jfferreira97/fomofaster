@@ -14,7 +14,7 @@ public class SolanaService : ISolanaService
 
     // Cache: ticker -> (contract address, last accessed time)
     private readonly ConcurrentDictionary<string, (string contractAddress, DateTime lastAccessed)> _tickerCache;
-    private readonly TimeSpan _cacheExpiration = TimeSpan.FromHours(1);
+    private readonly TimeSpan _cacheExpiration = TimeSpan.FromHours(4);
 
     public SolanaService(
         IOptions<HeliusSettings> settings,
@@ -53,7 +53,7 @@ public class SolanaService : ISolanaService
             _logger.LogInformation("🔍 Searching for contract address for ticker: {Ticker}", ticker);
 
             // Get recent transactions to extract mint addresses
-            var txUrl = $"https://api.helius.xyz/v0/addresses/{_settings.FomoAggregatorWallet}/transactions?api-key={_settings.ApiKey}&limit=70";
+            var txUrl = $"https://api.helius.xyz/v0/addresses/{_settings.FomoAggregatorWallet}/transactions?api-key={_settings.ApiKey}&limit=50";
             var txResponse = await _httpClient.GetAsync(txUrl);
 
             if (!txResponse.IsSuccessStatusCode)

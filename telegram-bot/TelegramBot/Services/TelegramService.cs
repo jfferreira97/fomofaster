@@ -16,17 +16,20 @@ public class TelegramService : ITelegramService
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<TelegramService> _logger;
     private readonly IHubContext<DashboardHub> _hubContext;
+    private readonly ContractAddressRetryService _retryService;
 
     public TelegramService(
         IOptions<TelegramSettings> settings,
         IServiceProvider serviceProvider,
         ILogger<TelegramService> logger,
-        IHubContext<DashboardHub> hubContext)
+        IHubContext<DashboardHub> hubContext,
+        ContractAddressRetryService retryService)
     {
         _settings = settings.Value;
         _serviceProvider = serviceProvider;
         _logger = logger;
         _hubContext = hubContext;
+        _retryService = retryService;
 
         if (!string.IsNullOrEmpty(_settings.BotToken))
         {
@@ -204,6 +207,12 @@ public class TelegramService : ITelegramService
 
         _logger.LogInformation("✅ Notification sent to {Success}/{Total} users ({Failed} failed)",
             successCount, users.Count, failCount);
+
+        // If no CA was found, enqueue for retry
+        if (!notificationRecord.HasCA)
+        {
+            await _retryService.EnqueueRetryAsync(notificationRecord.Id, notificationRecord.Ticker, notificationRecord.Trader);
+        }
     }
 
     public async Task SendTestMessageAsync(long chatId, string message)
