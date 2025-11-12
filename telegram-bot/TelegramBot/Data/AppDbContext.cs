@@ -15,6 +15,7 @@ public class AppDbContext : DbContext
     public DbSet<Notification> Notifications { get; set; }
     public DbSet<SentMessage> SentMessages { get; set; }
     public DbSet<KnownToken> KnownTokens { get; set; }
+    public DbSet<CachedTokenAddress> CachedTokenAddresses { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -110,6 +111,17 @@ public class AppDbContext : DbContext
             entity.Property(e => e.ContractAddress).IsRequired().HasMaxLength(100);
             entity.Property(e => e.MinMarketCap).IsRequired();
             entity.Property(e => e.Chain).HasConversion<string>(); // Store enum as string in SQLite
+        });
+
+        modelBuilder.Entity<CachedTokenAddress>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.HasIndex(e => e.Ticker).IsUnique(); // Fast ticker lookups
+            entity.HasIndex(e => e.ExpiresAt); // Fast cleanup queries
+            entity.Property(e => e.Ticker).IsRequired().HasMaxLength(50);
+            entity.Property(e => e.ContractAddress).IsRequired().HasMaxLength(100);
+            entity.Property(e => e.LastAccessed).IsRequired();
+            entity.Property(e => e.ExpiresAt).IsRequired();
         });
     }
 }

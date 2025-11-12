@@ -1,7 +1,8 @@
 using System.Text;
 using System.Text.Json;
-using System.Collections.Concurrent;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using TelegramBot.Data;
 using TelegramBot.Models;
 
 namespace TelegramBot.Services;
@@ -11,21 +12,20 @@ public class SolanaService : ISolanaService
     private readonly HeliusSettings _settings;
     private readonly HttpClient _httpClient;
     private readonly ILogger<SolanaService> _logger;
-
-    // Cache: ticker -> (contract address, last accessed time)
-    private readonly ConcurrentDictionary<string, (string contractAddress, DateTime lastAccessed)> _tickerCache;
+    private readonly IServiceProvider _serviceProvider;
     private readonly TimeSpan _cacheExpiration = TimeSpan.FromHours(4);
 
     public SolanaService(
         IOptions<HeliusSettings> settings,
         IHttpClientFactory httpClientFactory,
-        ILogger<SolanaService> logger)
+        ILogger<SolanaService> logger,
+        IServiceProvider serviceProvider)
     {
         _settings = settings.Value;
         _httpClient = httpClientFactory.CreateClient();
         _httpClient.Timeout = TimeSpan.FromSeconds(5); // Fast timeout for speed
         _logger = logger;
-        _tickerCache = new ConcurrentDictionary<string, (string, DateTime)>();
+        _serviceProvider = serviceProvider;
 
         // Start background task to clean expired cache entries
         Task.Run(CleanupExpiredCacheEntries);
@@ -39,13 +39,23 @@ public class SolanaService : ISolanaService
             return null;
         }
 
-        // Check cache first
-        if (_tickerCache.TryGetValue(ticker, out var cached))
+        using var scope = _serviceProvider.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        // Check database cache first
+        var cached = await dbContext.CachedTokenAddresses
+            .Where(c => c.Ticker == ticker && c.ExpiresAt > DateTime.UtcNow)
+            .FirstOrDefaultAsync();
+
+        if (cached != null)
         {
-            // Update last accessed time
-            _tickerCache[ticker] = (cached.contractAddress, DateTime.UtcNow);
-            _logger.LogInformation("💾 Cache hit for ticker: {Ticker} -> {Address}", ticker, cached.contractAddress);
-            return cached.contractAddress;
+            // Update last accessed time and expiration
+            cached.LastAccessed = DateTime.UtcNow;
+            cached.ExpiresAt = DateTime.UtcNow.Add(_cacheExpiration);
+            await dbContext.SaveChangesAsync();
+
+            _logger.LogInformation("💾 Cache hit for ticker: {Ticker} -> {Address}", ticker, cached.ContractAddress);
+            return cached.ContractAddress;
         }
 
         try
@@ -133,8 +143,8 @@ public class SolanaService : ISolanaService
                         {
                             _logger.LogInformation("✅ Found contract address: {Address} for ticker: {Ticker}", mint, ticker);
 
-                            // Cache the result
-                            _tickerCache[ticker] = (mint, DateTime.UtcNow);
+                            // Cache the result in database
+                            await AddToCacheInternalAsync(dbContext, ticker, mint);
 
                             return mint;
                         }
@@ -156,7 +166,7 @@ public class SolanaService : ISolanaService
         }
     }
 
-    public void AddToCache(string ticker, string contractAddress)
+    public async void AddToCache(string ticker, string contractAddress)
     {
         if (string.IsNullOrEmpty(ticker) || string.IsNullOrEmpty(contractAddress))
         {
@@ -164,8 +174,43 @@ public class SolanaService : ISolanaService
             return;
         }
 
-        _tickerCache[ticker] = (contractAddress, DateTime.UtcNow);
+        using var scope = _serviceProvider.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        await AddToCacheInternalAsync(dbContext, ticker, contractAddress);
         _logger.LogInformation("➕ Manually added to cache: {Ticker} -> {Address}", ticker, contractAddress);
+    }
+
+    private async Task AddToCacheInternalAsync(AppDbContext dbContext, string ticker, string contractAddress)
+    {
+        // Check if already exists
+        var existing = await dbContext.CachedTokenAddresses
+            .Where(c => c.Ticker == ticker)
+            .FirstOrDefaultAsync();
+
+        var now = DateTime.UtcNow;
+        var expiresAt = now.Add(_cacheExpiration);
+
+        if (existing != null)
+        {
+            // Update existing
+            existing.ContractAddress = contractAddress;
+            existing.LastAccessed = now;
+            existing.ExpiresAt = expiresAt;
+        }
+        else
+        {
+            // Add new
+            dbContext.CachedTokenAddresses.Add(new CachedTokenAddress
+            {
+                Ticker = ticker,
+                ContractAddress = contractAddress,
+                LastAccessed = now,
+                ExpiresAt = expiresAt
+            });
+        }
+
+        await dbContext.SaveChangesAsync();
     }
 
     private async Task CleanupExpiredCacheEntries()
@@ -176,24 +221,20 @@ public class SolanaService : ISolanaService
             {
                 await Task.Delay(TimeSpan.FromMinutes(10)); // Check every 10 minutes
 
+                using var scope = _serviceProvider.CreateScope();
+                var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
                 var now = DateTime.UtcNow;
-                var expiredKeys = _tickerCache
-                    .Where(kvp => now - kvp.Value.lastAccessed > _cacheExpiration)
-                    .Select(kvp => kvp.Key)
-                    .ToList();
+                var expiredEntries = await dbContext.CachedTokenAddresses
+                    .Where(c => c.ExpiresAt <= now)
+                    .ToListAsync();
 
-                foreach (var key in expiredKeys)
+                if (expiredEntries.Count > 0)
                 {
-                    if (_tickerCache.TryRemove(key, out var removed))
-                    {
-                        _logger.LogInformation("🗑️  Removed expired cache entry for ticker: {Ticker} (last accessed: {LastAccessed})",
-                            key, removed.lastAccessed);
-                    }
-                }
+                    dbContext.CachedTokenAddresses.RemoveRange(expiredEntries);
+                    await dbContext.SaveChangesAsync();
 
-                if (expiredKeys.Count > 0)
-                {
-                    _logger.LogInformation("🧹 Cleaned up {Count} expired cache entries", expiredKeys.Count);
+                    _logger.LogInformation("🧹 Cleaned up {Count} expired cache entries", expiredEntries.Count);
                 }
             }
             catch (Exception ex)
@@ -202,5 +243,4 @@ public class SolanaService : ISolanaService
             }
         }
     }
-
 }
