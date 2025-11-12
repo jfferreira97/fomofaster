@@ -15,7 +15,7 @@ public class ContractAddressRetryService : BackgroundService
     private readonly List<ContractAddressRetryItem> _retryQueue = new();
     private readonly SemaphoreSlim _queueLock = new(1, 1);
     private const int MaxRetries = 1;
-    private const int RetryDelaySeconds = 3;
+    private const int RetryDelaySeconds = 5;
 
     public ContractAddressRetryService(
         IServiceProvider serviceProvider,
