@@ -8,11 +8,13 @@ namespace TelegramBot.Controllers;
 public class UsersController : ControllerBase
 {
     private readonly IUserService _userService;
+    private readonly ITelegramService _telegramService;
     private readonly ILogger<UsersController> _logger;
 
-    public UsersController(IUserService userService, ILogger<UsersController> logger)
+    public UsersController(IUserService userService, ITelegramService telegramService, ILogger<UsersController> logger)
     {
         _userService = userService;
+        _telegramService = telegramService;
         _logger = logger;
     }
 
@@ -120,6 +122,44 @@ public class UsersController : ControllerBase
             return StatusCode(500, new { status = "error", message = ex.Message });
         }
     }
+
+    [HttpPost("send-message")]
+    public async Task<IActionResult> SendMessage([FromBody] SendMessageRequest request)
+    {
+        try
+        {
+            // Validate user exists and is active
+            var user = await _userService.GetUserByChatIdAsync(request.ChatId);
+            if (user == null)
+            {
+                return NotFound(new { status = "error", message = "User not found" });
+            }
+
+            if (!user.IsActive)
+            {
+                return BadRequest(new { status = "error", message = "User is not active" });
+            }
+
+            // Send plain text message (no ticker logic, no formatting)
+            var success = await _telegramService.SendPlainMessageAsync(request.ChatId, request.Message);
+
+            if (success)
+            {
+                _logger.LogInformation("Plain message sent to user {ChatId}", request.ChatId);
+                return Ok(new { status = "success", message = "Message sent successfully" });
+            }
+            else
+            {
+                return StatusCode(500, new { status = "error", message = "Failed to send message" });
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error sending message to user {ChatId}", request.ChatId);
+            return StatusCode(500, new { status = "error", message = ex.Message });
+        }
+    }
 }
 
 public record AddUserRequest(long ChatId, string? Username, string? FirstName);
+public record SendMessageRequest(long ChatId, string Message);

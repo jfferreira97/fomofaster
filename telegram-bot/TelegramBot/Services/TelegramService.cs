@@ -369,4 +369,30 @@ public class TelegramService : ITelegramService
         _logger.LogInformation("✅ Edited {Success}/{Total} messages for notification {NotificationId} ({Failed} failed)",
             successCount, sentMessages.Count, notificationId, failCount);
     }
+
+    public async Task<bool> SendPlainMessageAsync(long chatId, string message)
+    {
+        if (_botClient == null)
+        {
+            _logger.LogWarning("Telegram bot not configured, cannot send plain message");
+            return false;
+        }
+
+        try
+        {
+            await _botClient.SendTextMessageAsync(
+                chatId: chatId,
+                text: message,
+                disableWebPagePreview: true
+            );
+
+            _logger.LogInformation("Plain message sent to chat {ChatId}", chatId);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to send plain message to chat {ChatId}", chatId);
+            return false;
+        }
+    }
 }

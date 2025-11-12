@@ -1,7 +1,9 @@
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Options;
 using Telegram.Bot;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
+using TelegramBot.Hubs;
 using TelegramBot.Models;
 
 namespace TelegramBot.Services;
@@ -11,15 +13,18 @@ public class TelegramBotPollingService : BackgroundService
     private readonly TelegramBotClient? _botClient;
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<TelegramBotPollingService> _logger;
+    private readonly IHubContext<DashboardHub> _hubContext;
     private int _offset = 0;
 
     public TelegramBotPollingService(
         IOptions<TelegramSettings> settings,
         IServiceProvider serviceProvider,
-        ILogger<TelegramBotPollingService> logger)
+        ILogger<TelegramBotPollingService> logger,
+        IHubContext<DashboardHub> hubContext)
     {
         _serviceProvider = serviceProvider;
         _logger = logger;
+        _hubContext = hubContext;
 
         if (!string.IsNullOrEmpty(settings.Value.BotToken))
         {
@@ -122,7 +127,7 @@ public class TelegramBotPollingService : BackgroundService
         switch (command)
         {
             case "/start":
-                await userService.AddOrUpdateUserAsync(
+                var newUser = await userService.AddOrUpdateUserAsync(
                     chatId,
                     message.From?.Username,
                     message.From?.FirstName
@@ -144,6 +149,16 @@ Commands:
 Stay ahead of the curve! 🚀",
                     parseMode: ParseMode.Markdown
                 );
+
+                // Broadcast new user to dashboard via SignalR
+                await _hubContext.Clients.All.SendAsync("UserJoined", new
+                {
+                    chatId = newUser.ChatId,
+                    username = newUser.Username,
+                    firstName = newUser.FirstName,
+                    joinedAt = newUser.JoinedAt,
+                    isActive = newUser.IsActive
+                });
 
                 _logger.LogInformation("User started bot: ChatId={ChatId}, Username={Username}",
                     chatId, message.From?.Username);

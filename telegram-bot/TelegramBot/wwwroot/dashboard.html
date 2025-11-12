@@ -535,6 +535,7 @@
         <!-- Tabs -->
         <div class="tabs">
             <div class="tab active" onclick="switchTab('notifications')">Notifications</div>
+            <div class="tab" onclick="switchTab('users')">Users</div>
             <div class="tab" onclick="switchTab('settings')">Settings</div>
         </div>
 
@@ -542,6 +543,32 @@
         <div id="notifications-tab" class="tab-content active">
             <div class="chat-area" id="chatArea">
                 <div class="loading" id="loading">Loading notifications...</div>
+            </div>
+        </div>
+
+        <!-- Users Tab -->
+        <div id="users-tab" class="tab-content">
+            <div class="chat-area" style="overflow-y: auto;">
+                <div class="settings-container">
+                    <div class="settings-section">
+                        <div class="settings-section-title">Active Users</div>
+                        <div id="userCountBadge" style="color: #8a96a0; margin-bottom: 12px;">Loading...</div>
+                        <table id="usersTable">
+                            <thead>
+                                <tr>
+                                    <th>Chat ID</th>
+                                    <th>Username</th>
+                                    <th>First Name</th>
+                                    <th>Joined At</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="usersTableBody">
+                                <tr><td colspan="5" style="text-align: center; color: #8a96a0;">Loading...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -653,6 +680,20 @@
         </div>
     </div>
 
+    <!-- Send Message Modal -->
+    <div id="sendMessageModal" class="modal">
+        <div class="modal-content">
+            <span class="modal-close" onclick="closeSendMessageModal()">&times;</span>
+            <div class="modal-title">Send Message to User</div>
+            <p id="sendMessageUserInfo" style="color: #8a96a0; margin-bottom: 16px;"></p>
+            <div class="form-group">
+                <label class="form-label">Message</label>
+                <textarea id="sendMessageText" class="form-input" rows="5" placeholder="Enter your message here..."></textarea>
+            </div>
+            <button class="btn btn-primary" onclick="confirmSendMessage()">Send Message</button>
+        </div>
+    </div>
+
     <!-- SignalR Client Library -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/8.0.0/signalr.min.js"></script>
 
@@ -689,6 +730,16 @@
         connection.on("NotificationUpdated", (notification) => {
             console.log('🔄 Notification updated via SignalR:', notification);
             updateNotification(notification);
+        });
+
+        // Listen for new user joins
+        connection.on("UserJoined", (user) => {
+            console.log('👤 New user joined via SignalR:', user);
+            // Reload users table if on users tab
+            const usersTab = document.getElementById('users-tab');
+            if (usersTab && usersTab.classList.contains('active')) {
+                loadUsers();
+            }
         });
 
         // Start SignalR connection
@@ -988,9 +1039,11 @@
             document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
             document.getElementById(tabName + '-tab').classList.add('active');
 
-            // Load known tokens when switching to settings
+            // Load data based on tab
             if (tabName === 'settings') {
                 loadKnownTokens();
+            } else if (tabName === 'users') {
+                loadUsers();
             }
         }
 
@@ -1237,6 +1290,91 @@
             document.getElementById('testNotificationModal').style.display = 'none';
         }
 
+        // Users Management
+        let selectedUserChatId = null;
+        let selectedUserName = null;
+
+        async function loadUsers() {
+            try {
+                const response = await fetch('/api/users');
+                const data = await response.json();
+
+                const badge = document.getElementById('userCountBadge');
+                const tbody = document.getElementById('usersTableBody');
+
+                if (data.count === 0) {
+                    badge.textContent = 'No active users';
+                    tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: #8a96a0;">No users found</td></tr>';
+                    return;
+                }
+
+                badge.textContent = `Total: ${data.count} user${data.count !== 1 ? 's' : ''}`;
+
+                tbody.innerHTML = data.users.map(user => {
+                    const joinedDate = new Date(user.joinedAt).toLocaleString();
+                    const displayName = user.username || user.firstName || 'Unknown';
+                    return `
+                        <tr>
+                            <td>${user.chatId}</td>
+                            <td>${user.username || 'N/A'}</td>
+                            <td>${user.firstName || 'N/A'}</td>
+                            <td>${joinedDate}</td>
+                            <td>
+                                <button class="btn btn-secondary" onclick="showSendMessageModal(${user.chatId}, '${displayName}')">Send Message</button>
+                            </td>
+                        </tr>
+                    `;
+                }).join('');
+            } catch (error) {
+                console.error('Error loading users:', error);
+                document.getElementById('userCountBadge').textContent = 'Error loading users';
+            }
+        }
+
+        function showSendMessageModal(chatId, userName) {
+            selectedUserChatId = chatId;
+            selectedUserName = userName;
+            document.getElementById('sendMessageUserInfo').textContent = `Sending to: ${userName} (Chat ID: ${chatId})`;
+            document.getElementById('sendMessageText').value = '';
+            document.getElementById('sendMessageModal').style.display = 'block';
+        }
+
+        async function confirmSendMessage() {
+            const message = document.getElementById('sendMessageText').value.trim();
+            if (!message) {
+                alert('Please enter a message');
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/users/send-message', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        chatId: selectedUserChatId,
+                        message: message
+                    })
+                });
+
+                const result = await response.json();
+                if (response.ok && result.status === 'success') {
+                    alert('Message sent successfully!');
+                    closeSendMessageModal();
+                } else {
+                    alert('Error sending message: ' + (result.message || 'Unknown error'));
+                }
+            } catch (error) {
+                console.error('Error sending message:', error);
+                alert('Error sending message');
+            }
+        }
+
+        function closeSendMessageModal() {
+            document.getElementById('sendMessageModal').style.display = 'none';
+            selectedUserChatId = null;
+            selectedUserName = null;
+        }
+
         // Close modals when clicking outside
         window.onclick = function(event) {
             if (event.target == document.getElementById('tokenModal')) {
@@ -1247,6 +1385,9 @@
             }
             if (event.target == document.getElementById('testNotificationModal')) {
                 closeTestNotificationModal();
+            }
+            if (event.target == document.getElementById('sendMessageModal')) {
+                closeSendMessageModal();
             }
         };
 
