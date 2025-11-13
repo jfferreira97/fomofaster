@@ -550,6 +550,18 @@
         <div id="users-tab" class="tab-content">
             <div class="chat-area" style="overflow-y: auto;">
                 <div class="settings-container">
+                    <!-- Message All Users Section -->
+                    <div class="settings-section">
+                        <div class="settings-section-title">Message All Users</div>
+                        <p style="color: #8a96a0; margin-bottom: 12px;">Send a plain text message to all active users</p>
+                        <div class="form-group">
+                            <label class="form-label">Message</label>
+                            <textarea id="broadcastMessageText" class="form-input" rows="4" placeholder="Enter your message to send to all users..."></textarea>
+                        </div>
+                        <button class="btn btn-primary" onclick="showBroadcastConfirm()">Send to All Users</button>
+                    </div>
+
+                    <!-- Active Users List Section -->
                     <div class="settings-section">
                         <div class="settings-section-title">Active Users</div>
                         <div id="userCountBadge" style="color: #8a96a0; margin-bottom: 12px;">Loading...</div>
@@ -691,6 +703,20 @@
                 <textarea id="sendMessageText" class="form-input" rows="5" placeholder="Enter your message here..."></textarea>
             </div>
             <button class="btn btn-primary" onclick="confirmSendMessage()">Send Message</button>
+        </div>
+    </div>
+
+    <!-- Broadcast Message Confirmation Modal -->
+    <div id="broadcastModal" class="modal">
+        <div class="modal-content">
+            <span class="modal-close" onclick="closeBroadcastModal()">&times;</span>
+            <div class="modal-title">Confirm Broadcast to All Users</div>
+            <p id="broadcastUserCount" style="color: #8a96a0; margin-bottom: 16px;"></p>
+            <p style="color: #8a96a0; margin-bottom: 16px;">This will send the message to ALL active users. Type "broadcast" to confirm:</p>
+            <div class="form-group">
+                <input type="text" id="broadcastConfirm" class="form-input" placeholder="Type 'broadcast'">
+            </div>
+            <button class="btn btn-primary" onclick="confirmBroadcast()">Send Broadcast</button>
         </div>
     </div>
 
@@ -1375,6 +1401,61 @@
             selectedUserName = null;
         }
 
+        // Broadcast Message Functions
+        async function showBroadcastConfirm() {
+            const message = document.getElementById('broadcastMessageText').value.trim();
+            if (!message) {
+                alert('Please enter a message');
+                return;
+            }
+
+            // Get current user count
+            try {
+                const response = await fetch('/api/users');
+                const data = await response.json();
+                document.getElementById('broadcastUserCount').textContent = `This will send the message to ${data.count} active user${data.count !== 1 ? 's' : ''}.`;
+            } catch (error) {
+                console.error('Error getting user count:', error);
+            }
+
+            document.getElementById('broadcastConfirm').value = '';
+            document.getElementById('broadcastModal').style.display = 'block';
+        }
+
+        async function confirmBroadcast() {
+            const confirmText = document.getElementById('broadcastConfirm').value;
+            if (confirmText.toLowerCase() !== 'broadcast') {
+                alert('Please type "broadcast" to confirm');
+                return;
+            }
+
+            const message = document.getElementById('broadcastMessageText').value.trim();
+
+            try {
+                const response = await fetch('/api/users/broadcast-message', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message: message })
+                });
+
+                const result = await response.json();
+                if (response.ok && result.status === 'success') {
+                    alert(`Broadcast sent successfully to ${result.sentCount} users!`);
+                    closeBroadcastModal();
+                    document.getElementById('broadcastMessageText').value = '';
+                } else {
+                    alert('Error sending broadcast: ' + (result.message || 'Unknown error'));
+                }
+            } catch (error) {
+                console.error('Error sending broadcast:', error);
+                alert('Error sending broadcast');
+            }
+        }
+
+        function closeBroadcastModal() {
+            document.getElementById('broadcastModal').style.display = 'none';
+        }
+
         // Close modals when clicking outside
         window.onclick = function(event) {
             if (event.target == document.getElementById('tokenModal')) {
@@ -1388,6 +1469,9 @@
             }
             if (event.target == document.getElementById('sendMessageModal')) {
                 closeSendMessageModal();
+            }
+            if (event.target == document.getElementById('broadcastModal')) {
+                closeBroadcastModal();
             }
         };
 

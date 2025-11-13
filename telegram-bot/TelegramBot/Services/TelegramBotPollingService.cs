@@ -16,6 +16,9 @@ public class TelegramBotPollingService : BackgroundService
     private readonly IHubContext<DashboardHub> _hubContext;
     private int _offset = 0;
 
+    // FOMOFASTER token contract address - update this when token launches
+    private const string TOKEN_CONTRACT_ADDRESS = "We don't have an official token yet. Coming soon!";
+
     public TelegramBotPollingService(
         IOptions<TelegramSettings> settings,
         IServiceProvider serviceProvider,
@@ -145,6 +148,7 @@ Commands:
 /mytraders - View traders you're following
 /follow - Follow traders to get their notifications
 /unfollow - Unfollow traders
+/ca or /token - Get our token contract address
 
 Stay ahead of the curve! 🚀",
                     parseMode: ParseMode.Markdown
@@ -177,6 +181,8 @@ Stay ahead of the curve! 🚀",
 /follow all - Follow all traders
 /unfollow <ids/handles> - Unfollow traders (e.g., /unfollow 1,trader2)
 /unfollow all - Unfollow all traders
+/ca - Get FOMOFASTER token contract address
+/token - Get FOMOFASTER token contract address
 
 You'll only receive notifications from traders you follow!",
                     parseMode: ParseMode.Markdown
@@ -530,6 +536,15 @@ Use /unfollow 1,2,3 or /unfollow trader1,trader2 to unfollow traders.";
                 await _botClient.SendTextMessageAsync(
                     chatId: chatId,
                     text: unfollowResultMessage
+                );
+                break;
+
+            case "/ca":
+            case "/token":
+                await _botClient.SendTextMessageAsync(
+                    chatId: chatId,
+                    text: $"{TOKEN_CONTRACT_ADDRESS}",
+                    parseMode: ParseMode.Markdown
                 );
                 break;
 

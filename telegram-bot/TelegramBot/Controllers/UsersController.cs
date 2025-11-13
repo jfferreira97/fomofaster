@@ -159,7 +159,55 @@ public class UsersController : ControllerBase
             return StatusCode(500, new { status = "error", message = ex.Message });
         }
     }
+
+    [HttpPost("broadcast-message")]
+    public async Task<IActionResult> BroadcastMessage([FromBody] BroadcastMessageRequest request)
+    {
+        try
+        {
+            var users = await _userService.GetAllActiveUsersAsync();
+
+            if (users.Count == 0)
+            {
+                return Ok(new { status = "success", message = "No active users to send to", sentCount = 0 });
+            }
+
+            int successCount = 0;
+            int failCount = 0;
+
+            foreach (var user in users)
+            {
+                var success = await _telegramService.SendPlainMessageAsync(user.ChatId, request.Message);
+                if (success)
+                {
+                    successCount++;
+                }
+                else
+                {
+                    failCount++;
+                }
+            }
+
+            _logger.LogInformation("Broadcast message sent to {Success}/{Total} users ({Failed} failed)",
+                successCount, users.Count, failCount);
+
+            return Ok(new
+            {
+                status = "success",
+                message = $"Broadcast sent to {successCount} users",
+                sentCount = successCount,
+                failedCount = failCount,
+                totalUsers = users.Count
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error broadcasting message to all users");
+            return StatusCode(500, new { status = "error", message = ex.Message });
+        }
+    }
 }
 
 public record AddUserRequest(long ChatId, string? Username, string? FirstName);
 public record SendMessageRequest(long ChatId, string Message);
+public record BroadcastMessageRequest(string Message);
