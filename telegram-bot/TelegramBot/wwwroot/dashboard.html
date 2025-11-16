@@ -521,6 +521,70 @@
         .modal-close:hover {
             color: #ffffff;
         }
+
+        .recipients-tooltip-container {
+            position: relative;
+            display: inline-block;
+            cursor: pointer;
+        }
+
+        .recipients-tooltip-container:hover {
+            color: #5ba0d0;
+        }
+
+        .recipients-tooltip {
+            display: none;
+            position: absolute;
+            bottom: 100%;
+            left: 0;
+            margin-bottom: 8px;
+            background-color: #17212b;
+            border: 1px solid #2b5278;
+            border-radius: 8px;
+            padding: 8px 12px;
+            min-width: 200px;
+            max-width: 300px;
+            max-height: 300px;
+            overflow-y: auto;
+            z-index: 1000;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+        }
+
+        .recipients-tooltip-container:hover .recipients-tooltip {
+            display: block;
+        }
+
+        .recipients-tooltip-title {
+            font-weight: 600;
+            font-size: 12px;
+            color: #8a96a0;
+            margin-bottom: 6px;
+            border-bottom: 1px solid #2b5278;
+            padding-bottom: 4px;
+        }
+
+        .recipients-tooltip-item {
+            font-size: 13px;
+            color: #e8e9ea;
+            padding: 3px 0;
+        }
+
+        .recipients-tooltip-loading {
+            font-size: 13px;
+            color: #8a96a0;
+            font-style: italic;
+        }
+
+        .recipients-tooltip-arrow {
+            position: absolute;
+            top: 100%;
+            left: 20px;
+            width: 0;
+            height: 0;
+            border-left: 6px solid transparent;
+            border-right: 6px solid transparent;
+            border-top: 6px solid #2b5278;
+        }
     </style>
 </head>
 <body>
@@ -571,12 +635,13 @@
                                     <th>Chat ID</th>
                                     <th>Username</th>
                                     <th>First Name</th>
+                                    <th>Traders Tracking</th>
                                     <th>Joined At</th>
                                     <th>Actions</th>
                                 </tr>
                             </thead>
                             <tbody id="usersTableBody">
-                                <tr><td colspan="5" style="text-align: center; color: #8a96a0;">Loading...</td></tr>
+                                <tr><td colspan="6" style="text-align: center; color: #8a96a0;">Loading...</td></tr>
                             </tbody>
                         </table>
                     </div>
@@ -885,7 +950,14 @@
                     editBadge = `<span class="edited-badge">• System Edited ${notification.editedAt ? 'at ' + formatTime(notification.editedAt) : ''}</span>`;
                 }
                 messageMetadata.innerHTML = `
-                    <span>Sent to ${notification.recipientCount} of ${notification.totalUsers} users</span>
+                    <span class="recipients-tooltip-container" onmouseenter="loadRecipients(${notification.id})" data-notification-id="${notification.id}">
+                        Sent to ${notification.recipientCount} of ${notification.totalUsers} users
+                        <div class="recipients-tooltip" id="recipients-tooltip-${notification.id}">
+                            <div class="recipients-tooltip-title">Recipients</div>
+                            <div class="recipients-tooltip-loading">Loading...</div>
+                            <div class="recipients-tooltip-arrow"></div>
+                        </div>
+                    </span>
                     ${editBadge}
                     <span class="edit-ca-btn" onclick="toggleEditForm(${notification.id})">• Edit CA</span>
                 `;
@@ -933,7 +1005,14 @@
                     </div>
                 </div>
                 <div class="message-metadata">
-                    <span>Sent to ${notification.recipientCount} of ${notification.totalUsers} users</span>
+                    <span class="recipients-tooltip-container" onmouseenter="loadRecipients(${notification.id})" data-notification-id="${notification.id}">
+                        Sent to ${notification.recipientCount} of ${notification.totalUsers} users
+                        <div class="recipients-tooltip" id="recipients-tooltip-${notification.id}">
+                            <div class="recipients-tooltip-title">Recipients</div>
+                            <div class="recipients-tooltip-loading">Loading...</div>
+                            <div class="recipients-tooltip-arrow"></div>
+                        </div>
+                    </span>
                     ${notification.isManuallyEdited
                         ? `<span class="edited-badge">• Manually Edited ${notification.editedAt ? 'at ' + formatTime(notification.editedAt) : ''}</span>`
                         : notification.isSystemEdited
@@ -957,6 +1036,48 @@
 
             messageDiv.innerHTML = messageHtml;
             return messageDiv;
+        }
+
+        // Cache to avoid fetching recipients multiple times
+        const recipientsCache = {};
+
+        async function loadRecipients(notificationId) {
+            // Check if already loaded
+            if (recipientsCache[notificationId]) {
+                return;
+            }
+
+            const tooltip = document.getElementById(`recipients-tooltip-${notificationId}`);
+            if (!tooltip) return;
+
+            try {
+                const response = await fetch(`${API_BASE}/api/dashboard/notifications/${notificationId}/recipients`);
+                const data = await response.json();
+
+                if (data.status === 'success' && data.recipients) {
+                    recipientsCache[notificationId] = data.recipients;
+
+                    const recipientsHtml = data.recipients.length === 0
+                        ? '<div class="recipients-tooltip-loading">No recipients</div>'
+                        : data.recipients.map(r => {
+                            const displayName = r.username || r.firstName || `ChatID: ${r.chatId}`;
+                            return `<div class="recipients-tooltip-item">${displayName}</div>`;
+                        }).join('');
+
+                    tooltip.innerHTML = `
+                        <div class="recipients-tooltip-title">Recipients (${data.recipients.length})</div>
+                        ${recipientsHtml}
+                        <div class="recipients-tooltip-arrow"></div>
+                    `;
+                }
+            } catch (error) {
+                console.error('Error loading recipients:', error);
+                tooltip.innerHTML = `
+                    <div class="recipients-tooltip-title">Recipients</div>
+                    <div class="recipients-tooltip-loading">Error loading</div>
+                    <div class="recipients-tooltip-arrow"></div>
+                `;
+            }
         }
 
         function toggleEditForm(notificationId) {
@@ -1330,7 +1451,7 @@
 
                 if (data.count === 0) {
                     badge.textContent = 'No active users';
-                    tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: #8a96a0;">No users found</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: #8a96a0;">No users found</td></tr>';
                     return;
                 }
 
@@ -1339,11 +1460,13 @@
                 tbody.innerHTML = data.users.map(user => {
                     const joinedDate = new Date(user.joinedAt).toLocaleString();
                     const displayName = user.username || user.firstName || 'Unknown';
+                    const tradersTracking = `${user.trackingCount}/${user.totalTraders}`;
                     return `
                         <tr>
                             <td>${user.chatId}</td>
                             <td>${user.username || 'N/A'}</td>
                             <td>${user.firstName || 'N/A'}</td>
+                            <td>${tradersTracking}</td>
                             <td>${joinedDate}</td>
                             <td>
                                 <button class="btn btn-secondary" onclick="showSendMessageModal(${user.chatId}, '${displayName}')">Send Message</button>

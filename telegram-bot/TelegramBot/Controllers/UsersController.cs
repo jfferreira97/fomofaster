@@ -1,5 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
+using TelegramBot.Data;
 using TelegramBot.Services;
+using Microsoft.EntityFrameworkCore;
 
 namespace TelegramBot.Controllers;
 
@@ -10,12 +12,14 @@ public class UsersController : ControllerBase
     private readonly IUserService _userService;
     private readonly ITelegramService _telegramService;
     private readonly ILogger<UsersController> _logger;
+    private readonly AppDbContext _dbContext;
 
-    public UsersController(IUserService userService, ITelegramService telegramService, ILogger<UsersController> logger)
+    public UsersController(IUserService userService, ITelegramService telegramService, ILogger<UsersController> logger, AppDbContext dbContext)
     {
         _userService = userService;
         _telegramService = telegramService;
         _logger = logger;
+        _dbContext = dbContext;
     }
 
     [HttpGet]
@@ -24,6 +28,17 @@ public class UsersController : ControllerBase
         try
         {
             var users = await _userService.GetAllActiveUsersAsync();
+
+            // Get total traders count
+            var totalTraders = await _dbContext.Traders.CountAsync();
+
+            // Get trader counts for each user
+            var userTraderCounts = await _dbContext.UserTraders
+                .Where(ut => users.Select(u => u.Id).Contains(ut.UserId))
+                .GroupBy(ut => ut.UserId)
+                .Select(g => new { UserId = g.Key, Count = g.Count() })
+                .ToDictionaryAsync(x => x.UserId, x => x.Count);
+
             return Ok(new
             {
                 status = "success",
@@ -34,7 +49,9 @@ public class UsersController : ControllerBase
                     username = u.Username,
                     firstName = u.FirstName,
                     joinedAt = u.JoinedAt,
-                    isActive = u.IsActive
+                    isActive = u.IsActive,
+                    trackingCount = userTraderCounts.GetValueOrDefault(u.Id, 0),
+                    totalTraders = totalTraders
                 })
             });
         }

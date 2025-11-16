@@ -103,6 +103,42 @@ public class DashboardController : ControllerBase
         }
     }
 
+    [HttpGet("notifications/{id}/recipients")]
+    public async Task<IActionResult> GetNotificationRecipients(int id)
+    {
+        try
+        {
+            // Get all users who received this notification
+            var recipients = await _dbContext.SentMessages
+                .Where(sm => sm.NotificationId == id)
+                .Join(_dbContext.Users,
+                    sm => sm.ChatId,
+                    u => u.ChatId,
+                    (sm, u) => new
+                    {
+                        chatId = u.ChatId,
+                        username = u.Username,
+                        firstName = u.FirstName
+                    })
+                .ToListAsync();
+
+            return Ok(new
+            {
+                status = "success",
+                recipients
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error fetching notification recipients");
+            return StatusCode(500, new
+            {
+                status = "error",
+                message = "Failed to fetch recipients"
+            });
+        }
+    }
+
     [HttpPost("notifications/{id}/edit-ca")]
     public async Task<IActionResult> EditNotificationCA(
         int id,
