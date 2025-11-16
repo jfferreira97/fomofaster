@@ -54,7 +54,7 @@ public class TelegramService : ITelegramService
         return _botClient != null;
     }
 
-    public async Task SendNotificationToAllUsersAsync(NotificationRequest notification, string? contractAddress = null, string? traderHandle = null, string? ticker = null, Chain? chain = null)
+    public async Task SendNotificationToAllUsersAsync(NotificationRequest notification, string? contractAddress = null, string? traderHandle = null, string? ticker = null, Chain? chain = null, double? marketCap = null)
     {
         if (_botClient == null)
         {
@@ -208,10 +208,10 @@ public class TelegramService : ITelegramService
         _logger.LogInformation("✅ Notification sent to {Success}/{Total} users ({Failed} failed)",
             successCount, users.Count, failCount);
 
-        // If no CA was found, enqueue for retry
+        // If no CA was found, enqueue for retry with marketcap
         if (!notificationRecord.HasCA)
         {
-            await _retryService.EnqueueRetryAsync(notificationRecord.Id, notificationRecord.Ticker, notificationRecord.Trader);
+            await _retryService.EnqueueRetryAsync(notificationRecord.Id, notificationRecord.Ticker, notificationRecord.Trader, marketCap);
         }
     }
 

@@ -166,6 +166,55 @@ public class SolanaService : ISolanaService
         }
     }
 
+    public async Task<string?> GetContractAddressByTickerAndMarketCapAsync(string ticker, double? marketCap)
+    {
+        if (string.IsNullOrEmpty(ticker))
+        {
+            _logger.LogWarning("Empty ticker provided");
+            return null;
+        }
+
+        // Strategy: Try Helius first, then DexScreener
+        _logger.LogInformation("Attempting CA lookup for {Ticker} (MarketCap: ${MarketCap:N0})", ticker, marketCap);
+
+        // 1. Try Helius wallet scanning first
+        _logger.LogInformation("🔍 Method 1: Helius wallet scanning");
+        var heliusResult = await GetContractAddressByTickerAsync(ticker);
+        if (!string.IsNullOrEmpty(heliusResult))
+        {
+            _logger.LogInformation("✅ Helius found CA: {CA}", heliusResult);
+            return heliusResult;
+        }
+
+        // 2. If Helius fails and we have marketcap, try DexScreener
+        if (marketCap.HasValue && marketCap.Value > 0)
+        {
+            _logger.LogInformation("🔍 Method 2: DexScreener API with marketcap filter");
+            using var scope = _serviceProvider.CreateScope();
+            var dexScreenerService = scope.ServiceProvider.GetRequiredService<IDexScreenerService>();
+
+            var dexScreenerResult = await dexScreenerService.GetContractAddressByTickerAndMarketCapAsync(ticker, marketCap.Value);
+            if (!string.IsNullOrEmpty(dexScreenerResult))
+            {
+                _logger.LogInformation("✅ DexScreener found CA: {CA}", dexScreenerResult);
+
+                // Cache it for future lookups
+                using var cacheScope = _serviceProvider.CreateScope();
+                var dbContext = cacheScope.ServiceProvider.GetRequiredService<AppDbContext>();
+                await AddToCacheInternalAsync(dbContext, ticker, dexScreenerResult);
+
+                return dexScreenerResult;
+            }
+        }
+        else
+        {
+            _logger.LogWarning("⚠️ No marketcap provided, skipping DexScreener lookup");
+        }
+
+        _logger.LogWarning("❌ Both methods failed to find CA for {Ticker}", ticker);
+        return null;
+    }
+
     public async void AddToCache(string ticker, string contractAddress)
     {
         if (string.IsNullOrEmpty(ticker) || string.IsNullOrEmpty(contractAddress))

@@ -123,9 +123,15 @@ public class NotificationsController : ControllerBase
                 _logger.LogWarning("Could not extract trader from message");
             }
 
+            // Extract market cap once (will be used for retry if needed)
+            long? marketCap = null;
+
             if (!string.IsNullOrEmpty(ticker))
             {
                 _logger.LogInformation("Extracted ticker: {Ticker}", ticker);
+
+                // Extract market cap from the notification
+                marketCap = ExtractMarketCap(noti.Message);
 
                 // Load known tokens cache
                 var knownTokensCache = await GetKnownTokensCacheAsync();
@@ -134,9 +140,6 @@ public class NotificationsController : ControllerBase
                 if (knownTokensCache.ContainsKey(ticker))
                 {
                     _logger.LogInformation("Ticker {Ticker} found in known tokens list, checking market cap", ticker);
-
-                    // Extract market cap from the notification
-                    long? marketCap = ExtractMarketCap(noti.Message);
 
                     if (marketCap.HasValue)
                     {
@@ -152,25 +155,25 @@ public class NotificationsController : ControllerBase
                         }
                         else
                         {
-                            _logger.LogInformation("⚠️  Market cap too low (${0:N0} < ${1:N0}), falling back to aggregator wallet lookup (Solana)", marketCap.Value, knownToken.MinMarketCap);
-                            contractAddress = await _solanaService.GetContractAddressByTickerAsync(ticker);
-                            chain = Chain.SOL; // Helius API is Solana-only
+                            _logger.LogInformation("⚠️  Market cap too low (${0:N0} < ${1:N0}), falling back to lookup", marketCap.Value, knownToken.MinMarketCap);
+                            contractAddress = await _solanaService.GetContractAddressByTickerAndMarketCapAsync(ticker, marketCap);
+                            chain = Chain.SOL;
                         }
                     }
                     else
                     {
                         // No market cap found (thesis notifications don't have MC)
-                        _logger.LogInformation("No market cap found in message, using aggregator wallet lookup (Solana)");
-                        contractAddress = await _solanaService.GetContractAddressByTickerAsync(ticker);
-                        chain = Chain.SOL; // Helius API is Solana-only
+                        _logger.LogInformation("No market cap found in message, trying lookup without marketcap");
+                        contractAddress = await _solanaService.GetContractAddressByTickerAndMarketCapAsync(ticker, null);
+                        chain = Chain.SOL;
                     }
                 }
                 else
                 {
-                    // Not a known token, use normal lookup (no need to extract MC)
-                    _logger.LogInformation("Ticker not in known tokens list, using aggregator wallet lookup (Solana)");
-                    contractAddress = await _solanaService.GetContractAddressByTickerAsync(ticker);
-                    chain = Chain.SOL; // Helius API is Solana-only
+                    // Not a known token, use extracted MC
+                    _logger.LogInformation("Ticker not in known tokens list, trying lookup (MarketCap: ${MarketCap:N0})", marketCap);
+                    contractAddress = await _solanaService.GetContractAddressByTickerAndMarketCapAsync(ticker, marketCap);
+                    chain = Chain.SOL;
                 }
 
                 if (!string.IsNullOrEmpty(contractAddress))
@@ -188,7 +191,8 @@ public class NotificationsController : ControllerBase
             }
 
             // Send to users following this trader (or all if no trader extracted)
-            await _telegramService.SendNotificationToAllUsersAsync(noti, contractAddress, trader, ticker, chain);
+            // Pass marketcap for retry service
+            await _telegramService.SendNotificationToAllUsersAsync(noti, contractAddress, trader, ticker, chain, marketCap);
 
             return Ok(new
             {

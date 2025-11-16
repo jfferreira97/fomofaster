@@ -25,7 +25,7 @@ public class ContractAddressRetryService : BackgroundService
         _logger = logger;
     }
 
-    public async Task EnqueueRetryAsync(int notificationId, string? ticker, string? trader)
+    public async Task EnqueueRetryAsync(int notificationId, string? ticker, string? trader, double? marketCap)
     {
         await _queueLock.WaitAsync();
         try
@@ -35,14 +35,15 @@ public class ContractAddressRetryService : BackgroundService
                 NotificationId = notificationId,
                 Ticker = ticker,
                 Trader = trader,
+                MarketCap = marketCap,
                 EnqueuedAt = DateTime.UtcNow,
                 RetryCount = 0,
                 NextRetryAt = DateTime.UtcNow.AddSeconds(RetryDelaySeconds)
             };
 
             _retryQueue.Add(retryItem);
-            _logger.LogInformation("Enqueued notification {NotificationId} for CA retry (ticker: {Ticker}, trader: {Trader})",
-                notificationId, ticker, trader);
+            _logger.LogInformation("Enqueued notification {NotificationId} for CA retry (ticker: {Ticker}, trader: {Trader}, marketCap: ${MarketCap:N0})",
+                notificationId, ticker, trader, marketCap);
         }
         finally
         {
@@ -119,12 +120,26 @@ public class ContractAddressRetryService : BackgroundService
     {
         try
         {
-            // Try to fetch contract address
+            // Strategy on retry: Try DexScreener first (with marketcap if available), then Helius
             string? contractAddress = null;
 
             if (!string.IsNullOrWhiteSpace(item.Ticker))
             {
-                contractAddress = await solanaService.GetContractAddressByTickerAsync(item.Ticker);
+                // Method 1: Try DexScreener first (better for tokens that have been around)
+                if (item.MarketCap.HasValue && item.MarketCap.Value > 0)
+                {
+                    _logger.LogInformation("🔍 Retry Method 1: DexScreener with marketcap ${MarketCap:N0}", item.MarketCap);
+                    using var dexScope = _serviceProvider.CreateScope();
+                    var dexScreenerService = dexScope.ServiceProvider.GetRequiredService<IDexScreenerService>();
+                    contractAddress = await dexScreenerService.GetContractAddressByTickerAndMarketCapAsync(item.Ticker, item.MarketCap.Value);
+                }
+
+                // Method 2: If DexScreener fails, try Helius wallet scanning
+                if (string.IsNullOrWhiteSpace(contractAddress))
+                {
+                    _logger.LogInformation("🔍 Retry Method 2: Helius wallet scanning");
+                    contractAddress = await solanaService.GetContractAddressByTickerAsync(item.Ticker);
+                }
             }
 
             if (!string.IsNullOrWhiteSpace(contractAddress))
