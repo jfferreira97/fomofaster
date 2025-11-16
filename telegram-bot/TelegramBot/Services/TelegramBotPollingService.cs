@@ -148,7 +148,7 @@ Commands:
 /mytraders - View traders you're following
 /follow - Follow traders to get their notifications
 /unfollow - Unfollow traders
-/ca or /token - Get our token contract address
+/ca - Get the official $FOMOFASTER token contract address
 
 Stay ahead of the curve! 🚀",
                     parseMode: ParseMode.Markdown
@@ -182,7 +182,6 @@ Stay ahead of the curve! 🚀",
 /unfollow <ids/handles> - Unfollow traders (e.g., /unfollow 1,trader2)
 /unfollow all - Unfollow all traders
 /ca - Get FOMOFASTER token contract address
-/token - Get FOMOFASTER token contract address
 
 You'll only receive notifications from traders you follow!",
                     parseMode: ParseMode.Markdown
@@ -540,7 +539,6 @@ Use /unfollow 1,2,3 or /unfollow trader1,trader2 to unfollow traders.";
                 break;
 
             case "/ca":
-            case "/token":
                 await _botClient.SendTextMessageAsync(
                     chatId: chatId,
                     text: $"{TOKEN_CONTRACT_ADDRESS}",
