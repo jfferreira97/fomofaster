@@ -174,6 +174,13 @@ public class TelegramService : ITelegramService
 
                 successCount++;
             }
+            catch (Telegram.Bot.Exceptions.ApiRequestException apiEx) when (apiEx.Message.Contains("bot was blocked by the user") || apiEx.Message.Contains("user is deactivated") || apiEx.Message.Contains("chat not found"))
+            {
+                // User blocked the bot or deleted their account - deactivate them
+                _logger.LogWarning("User {ChatId} blocked the bot or is unavailable, deactivating user", user.ChatId);
+                await userService.DeactivateUserAsync(user.ChatId);
+                failCount++;
+            }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Failed to send message to user {ChatId}", user.ChatId);
@@ -329,6 +336,13 @@ public class TelegramService : ITelegramService
                 sentMessage.EditedAt = DateTime.UtcNow;
                 successCount++;
             }
+            catch (Telegram.Bot.Exceptions.ApiRequestException apiEx) when (apiEx.Message.Contains("bot was blocked by the user") || apiEx.Message.Contains("user is deactivated") || apiEx.Message.Contains("chat not found"))
+            {
+                // User blocked the bot or deleted their account - deactivate them
+                _logger.LogWarning("User {ChatId} blocked the bot or is unavailable, deactivating user", sentMessage.ChatId);
+                await userService.DeactivateUserAsync(sentMessage.ChatId);
+                failCount++;
+            }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Failed to edit message {MessageId} for chat {ChatId}",
@@ -388,6 +402,17 @@ public class TelegramService : ITelegramService
 
             _logger.LogInformation("Plain message sent to chat {ChatId}", chatId);
             return true;
+        }
+        catch (Telegram.Bot.Exceptions.ApiRequestException apiEx) when (apiEx.Message.Contains("bot was blocked by the user") || apiEx.Message.Contains("user is deactivated") || apiEx.Message.Contains("chat not found"))
+        {
+            // User blocked the bot or deleted their account - deactivate them
+            _logger.LogWarning("User {ChatId} blocked the bot or is unavailable, deactivating user", chatId);
+
+            using var scope = _serviceProvider.CreateScope();
+            var userService = scope.ServiceProvider.GetRequiredService<IUserService>();
+            await userService.DeactivateUserAsync(chatId);
+
+            return false;
         }
         catch (Exception ex)
         {
