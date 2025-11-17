@@ -1468,8 +1468,10 @@
                             <td>${user.firstName || 'N/A'}</td>
                             <td>${tradersTracking}</td>
                             <td>${joinedDate}</td>
-                            <td>
+                            <td style="display: flex; gap: 6px; flex-wrap: wrap;">
                                 <button class="btn btn-secondary" onclick="showSendMessageModal(${user.chatId}, '${displayName}')">Send Message</button>
+                                <button class="btn btn-primary" onclick="followAllTraders(${user.chatId}, '${displayName}')">Follow All</button>
+                                <button class="btn btn-danger" onclick="unfollowAllTraders(${user.chatId}, '${displayName}')">Unfollow All</button>
                             </td>
                         </tr>
                     `;
@@ -1522,6 +1524,52 @@
             document.getElementById('sendMessageModal').style.display = 'none';
             selectedUserChatId = null;
             selectedUserName = null;
+        }
+
+        async function followAllTraders(chatId, userName) {
+            if (!confirm(`Make ${userName} follow all traders?`)) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/users/${chatId}/follow-all`, {
+                    method: 'POST'
+                });
+
+                const result = await response.json();
+                if (response.ok && result.status === 'success') {
+                    alert(result.message);
+                    loadUsers(); // Reload to show updated tracking count
+                } else {
+                    alert('Error: ' + (result.message || 'Unknown error'));
+                }
+            } catch (error) {
+                console.error('Error making user follow all traders:', error);
+                alert('Error making user follow all traders');
+            }
+        }
+
+        async function unfollowAllTraders(chatId, userName) {
+            if (!confirm(`Make ${userName} unfollow all traders?`)) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/users/${chatId}/unfollow-all`, {
+                    method: 'POST'
+                });
+
+                const result = await response.json();
+                if (response.ok && result.status === 'success') {
+                    alert(result.message);
+                    loadUsers(); // Reload to show updated tracking count
+                } else {
+                    alert('Error: ' + (result.message || 'Unknown error'));
+                }
+            } catch (error) {
+                console.error('Error making user unfollow all traders:', error);
+                alert('Error making user unfollow all traders');
+            }
         }
 
         // Broadcast Message Functions

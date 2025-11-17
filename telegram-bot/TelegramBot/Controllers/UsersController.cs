@@ -223,6 +223,64 @@ public class UsersController : ControllerBase
             return StatusCode(500, new { status = "error", message = ex.Message });
         }
     }
+
+    [HttpPost("{chatId}/follow-all")]
+    public async Task<IActionResult> FollowAllTraders(long chatId)
+    {
+        try
+        {
+            var user = await _userService.GetUserByChatIdAsync(chatId);
+            if (user == null)
+            {
+                return NotFound(new { status = "error", message = "User not found" });
+            }
+
+            var traderService = HttpContext.RequestServices.GetRequiredService<ITraderService>();
+            var followedCount = await traderService.FollowAllTradersAsync(user.Id);
+            var allTraders = await traderService.GetAllTradersAsync();
+
+            return Ok(new
+            {
+                status = "success",
+                message = $"User now following all {allTraders.Count} traders",
+                newFollows = followedCount,
+                totalTraders = allTraders.Count
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error making user {ChatId} follow all traders", chatId);
+            return StatusCode(500, new { status = "error", message = ex.Message });
+        }
+    }
+
+    [HttpPost("{chatId}/unfollow-all")]
+    public async Task<IActionResult> UnfollowAllTraders(long chatId)
+    {
+        try
+        {
+            var user = await _userService.GetUserByChatIdAsync(chatId);
+            if (user == null)
+            {
+                return NotFound(new { status = "error", message = "User not found" });
+            }
+
+            var traderService = HttpContext.RequestServices.GetRequiredService<ITraderService>();
+            var unfollowedCount = await traderService.UnfollowAllTradersAsync(user.Id);
+
+            return Ok(new
+            {
+                status = "success",
+                message = $"User unfollowed all traders",
+                unfollowedCount = unfollowedCount
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error making user {ChatId} unfollow all traders", chatId);
+            return StatusCode(500, new { status = "error", message = ex.Message });
+        }
+    }
 }
 
 public record AddUserRequest(long ChatId, string? Username, string? FirstName);

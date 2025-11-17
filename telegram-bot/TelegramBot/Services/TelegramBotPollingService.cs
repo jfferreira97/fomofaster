@@ -136,21 +136,22 @@ public class TelegramBotPollingService : BackgroundService
                     message.From?.FirstName
                 );
 
+                await traderService.FollowAllTradersAsync(newUser.Id);
+                var allTradersCount = await traderService.GetAllTradersAsync();
+
                 await _botClient.SendTextMessageAsync(
                     chatId: chatId,
-                    text: @"🎉 Welcome to FOMOFASTER!
+                    text: $@"🎉 Welcome to FOMOFASTER!
 
-You'll now receive real-time notifications when top Solana traders make moves.
+youre now following all {allTradersCount.Count} traders by default, configure according to your preferences if needed:
 
-Commands:
-/help - Show available commands
-/list - View all available traders
-/mytraders - View traders you're following
-/follow - Follow traders to get their notifications
-/unfollow - Unfollow traders
-/ca - Get the official $FOMOFASTER token contract address
-
-Stay ahead of the curve! 🚀",
+/help - show available commands
+/list - view all available traders
+/mytraders - view traders youre following
+/follow - follow specific traders
+/unfollow - unfollow specific traders
+/ca - get the official $FOMOFASTER token contract address
+",
                     parseMode: ParseMode.Markdown
                 );
 
