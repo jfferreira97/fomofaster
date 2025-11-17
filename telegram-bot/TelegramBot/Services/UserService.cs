@@ -25,6 +25,11 @@ public class UserService : IUserService
         return await _dbContext.Users.Where(u => u.IsActive).ToListAsync();
     }
 
+    public async Task<List<User>> GetAllUsersAsync()
+    {
+        return await _dbContext.Users.ToListAsync();
+    }
+
     public async Task<User> AddOrUpdateUserAsync(long chatId, string? username, string? firstName)
     {
         var user = await GetUserByChatIdAsync(chatId);

@@ -27,7 +27,7 @@ public class UsersController : ControllerBase
     {
         try
         {
-            var users = await _userService.GetAllActiveUsersAsync();
+            var users = await _userService.GetAllUsersAsync();
 
             // Get total traders count
             var totalTraders = await _dbContext.Traders.CountAsync();

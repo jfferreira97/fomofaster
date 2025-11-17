@@ -636,12 +636,13 @@
                                     <th>Username</th>
                                     <th>First Name</th>
                                     <th>Traders Tracking</th>
+                                    <th>Active</th>
                                     <th>Joined At</th>
                                     <th>Actions</th>
                                 </tr>
                             </thead>
                             <tbody id="usersTableBody">
-                                <tr><td colspan="6" style="text-align: center; color: #8a96a0;">Loading...</td></tr>
+                                <tr><td colspan="7" style="text-align: center; color: #8a96a0;">Loading...</td></tr>
                             </tbody>
                         </table>
                     </div>
@@ -1451,7 +1452,7 @@
 
                 if (data.count === 0) {
                     badge.textContent = 'No active users';
-                    tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: #8a96a0;">No users found</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: #8a96a0;">No users found</td></tr>';
                     return;
                 }
 
@@ -1461,12 +1462,16 @@
                     const joinedDate = new Date(user.joinedAt).toLocaleString();
                     const displayName = user.username || user.firstName || 'Unknown';
                     const tradersTracking = `${user.trackingCount}/${user.totalTraders}`;
+                    const isActiveDisplay = user.isActive
+                        ? '<span style="color: #4ade80;">✓ Active</span>'
+                        : '<span style="color: #f87171;">✗ Inactive</span>';
                     return `
                         <tr>
                             <td>${user.chatId}</td>
                             <td>${user.username || 'N/A'}</td>
                             <td>${user.firstName || 'N/A'}</td>
                             <td>${tradersTracking}</td>
+                            <td>${isActiveDisplay}</td>
                             <td>${joinedDate}</td>
                             <td style="display: flex; gap: 6px; flex-wrap: wrap;">
                                 <button class="btn btn-secondary" onclick="showSendMessageModal(${user.chatId}, '${displayName}')">Send Message</button>
