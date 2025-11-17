@@ -143,7 +143,7 @@ public class TelegramBotPollingService : BackgroundService
                     chatId: chatId,
                     text: $@"🎉 Welcome to FOMOFASTER!
 
-youre now following all {allTradersCount.Count} traders by default, configure according to your preferences if needed:
+You're now following all {allTradersCount.Count} traders by default, configure according to your preferences if needed:
 
 /help - show available commands
 /list - view all available traders
@@ -151,6 +151,8 @@ youre now following all {allTradersCount.Count} traders by default, configure ac
 /follow - follow specific traders
 /unfollow - unfollow specific traders
 /ca - get the official $FOMOFASTER token contract address
+
+Follow us on twitter, stay tuned for major updates: https://x.com/FOMOFASTER
 ",
                     parseMode: ParseMode.Markdown
                 );

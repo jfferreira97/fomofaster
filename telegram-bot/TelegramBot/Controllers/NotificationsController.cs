@@ -156,24 +156,21 @@ public class NotificationsController : ControllerBase
                         else
                         {
                             _logger.LogInformation("⚠️  Market cap too low (${0:N0} < ${1:N0}), falling back to lookup", marketCap.Value, knownToken.MinMarketCap);
-                            contractAddress = await _solanaService.GetContractAddressByTickerAndMarketCapAsync(ticker, marketCap);
-                            chain = Chain.SOL;
+                            (contractAddress, chain) = await _solanaService.GetContractAddressAndChainByTickerAndMarketCapAsync(ticker, marketCap);
                         }
                     }
                     else
                     {
                         // No market cap found (thesis notifications don't have MC)
                         _logger.LogInformation("No market cap found in message, trying lookup without marketcap");
-                        contractAddress = await _solanaService.GetContractAddressByTickerAndMarketCapAsync(ticker, null);
-                        chain = Chain.SOL;
+                        (contractAddress, chain) = await _solanaService.GetContractAddressAndChainByTickerAndMarketCapAsync(ticker, null);
                     }
                 }
                 else
                 {
                     // Not a known token, use extracted MC
                     _logger.LogInformation("Ticker not in known tokens list, trying lookup (MarketCap: ${MarketCap:N0})", marketCap);
-                    contractAddress = await _solanaService.GetContractAddressByTickerAndMarketCapAsync(ticker, marketCap);
-                    chain = Chain.SOL;
+                    (contractAddress, chain) = await _solanaService.GetContractAddressAndChainByTickerAndMarketCapAsync(ticker, marketCap);
                 }
 
                 if (!string.IsNullOrEmpty(contractAddress))

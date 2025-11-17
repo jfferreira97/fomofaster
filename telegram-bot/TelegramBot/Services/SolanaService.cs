@@ -215,6 +215,58 @@ public class SolanaService : ISolanaService
         return null;
     }
 
+    public async Task<(string? contractAddress, Chain? chain)> GetContractAddressAndChainByTickerAndMarketCapAsync(string ticker, double? marketCap)
+    {
+        if (string.IsNullOrEmpty(ticker))
+        {
+            _logger.LogWarning("Empty ticker provided");
+            return (null, null);
+        }
+
+        // Strategy: Try Helius first (Solana only), then DexScreener (multi-chain)
+        _logger.LogInformation("Attempting CA lookup for {Ticker} (MarketCap: ${MarketCap:N0})", ticker, marketCap);
+
+        // 1. Try Helius wallet scanning first (Solana only)
+        _logger.LogInformation("Method 1: Helius wallet scanning");
+        var heliusResult = await GetContractAddressByTickerAsync(ticker);
+        if (!string.IsNullOrEmpty(heliusResult))
+        {
+            _logger.LogInformation("✅ Helius found CA: {CA} (Chain: SOL)", heliusResult);
+            return (heliusResult, Chain.SOL);
+        }
+
+        // 2. If Helius fails and we have marketcap, try DexScreener (multi-chain)
+        if (marketCap.HasValue && marketCap.Value > 0)
+        {
+            _logger.LogInformation("Method 2: DexScreener API with marketcap filter (multi-chain)");
+            using var scope = _serviceProvider.CreateScope();
+            var dexScreenerService = scope.ServiceProvider.GetRequiredService<IDexScreenerService>();
+
+            var (contractAddress, chain) = await dexScreenerService.GetContractAddressAndChainByTickerAndMarketCapAsync(ticker, marketCap.Value);
+            if (!string.IsNullOrEmpty(contractAddress))
+            {
+                _logger.LogInformation("✅ DexScreener found CA: {CA} (Chain: {Chain})", contractAddress, chain);
+
+                // Cache it for future lookups (only if Solana, as Helius is Solana-specific)
+                if (chain == Chain.SOL)
+                {
+                    using var cacheScope = _serviceProvider.CreateScope();
+                    var dbContext = cacheScope.ServiceProvider.GetRequiredService<AppDbContext>();
+                    await AddToCacheInternalAsync(dbContext, ticker, contractAddress);
+                }
+
+                return (contractAddress, chain);
+            }
+        }
+        else
+        {
+            _logger.LogWarning("⚠️ No marketcap provided, skipping DexScreener lookup");
+        }
+
+        _logger.LogWarning("❌ Both methods failed to find CA for {Ticker}", ticker);
+        return (null, null);
+    }
+
     public async void AddToCache(string ticker, string contractAddress)
     {
         if (string.IsNullOrEmpty(ticker) || string.IsNullOrEmpty(contractAddress))

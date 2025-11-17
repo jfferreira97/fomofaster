@@ -105,6 +105,62 @@ public class DexScreenerService : IDexScreenerService
         return bestMatch.BaseToken?.Address;
     }
 
+    public async Task<(string? contractAddress, Chain? chain)> GetContractAddressAndChainByTickerAndMarketCapAsync(string ticker, double expectedMarketCap)
+    {
+        var response = await SearchTokenByTickerAsync(ticker);
+
+        if (response?.Pairs == null || response.Pairs.Count == 0)
+        {
+            _logger.LogWarning("No pairs found for ticker {Ticker}", ticker);
+            return (null, null);
+        }
+
+        // Get tolerance percentage for this marketcap
+        var tolerancePercent = GetToleranceForMarketCap(expectedMarketCap);
+        _logger.LogInformation("Using {Tolerance}% tolerance for marketcap ${MarketCap:N0}",
+            tolerancePercent, expectedMarketCap);
+
+        // Calculate bounds
+        var minMarketCap = expectedMarketCap / (1 + tolerancePercent / 100.0);
+        var maxMarketCap = expectedMarketCap * (1 + tolerancePercent / 100.0);
+
+        // Filter pairs
+        var candidates = response.Pairs
+            .Where(p => IsValidPair(p, minMarketCap, maxMarketCap))
+            .OrderByDescending(p => CalculatePairScore(p, expectedMarketCap))
+            .ToList();
+
+        if (candidates.Count == 0)
+        {
+            _logger.LogWarning("No valid pairs found for ticker {Ticker} with marketcap ${MarketCap:N0} (±{Tolerance}%)",
+                ticker, expectedMarketCap, tolerancePercent);
+            return (null, null);
+        }
+
+        var bestMatch = candidates.First();
+        var contractAddress = bestMatch.BaseToken?.Address;
+        var chain = MapChainIdToChain(bestMatch.ChainId);
+
+        _logger.LogInformation("Selected pair: CA={CA}, MarketCap=${MarketCap:N0}, Liquidity=${Liquidity:N0}, DEX={Dex}, Chain={Chain}",
+            contractAddress, bestMatch.MarketCap, bestMatch.Liquidity?.Usd, bestMatch.DexId, bestMatch.ChainId);
+
+        return (contractAddress, chain);
+    }
+
+    private Chain? MapChainIdToChain(string? chainId)
+    {
+        if (string.IsNullOrEmpty(chainId))
+            return null;
+
+        return chainId.ToLowerInvariant() switch
+        {
+            "solana" => Chain.SOL,
+            "bsc" => Chain.BNB,
+            "base" => Chain.BASE,
+            _ => null
+        };
+    }
+
     private double GetToleranceForMarketCap(double marketCap)
     {
         // Loop through tolerance ranges in order
