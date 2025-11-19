@@ -3,6 +3,7 @@ using Microsoft.Extensions.Options;
 using Telegram.Bot;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
+using TelegramBot.Data;
 using TelegramBot.Hubs;
 using TelegramBot.Models;
 
@@ -150,6 +151,7 @@ You're now following all {allTradersCount.Count} traders by default, configure a
 /mytraders - view traders youre following
 /follow - follow specific traders
 /unfollow - unfollow specific traders
+/autofollow - check/toggle auto-follow for new traders (starts ON by default)
 /ca - get the official $FOMOFASTER token contract address
 
 Follow us on twitter, stay tuned for major updates: https://x.com/FOMOFASTER
@@ -184,6 +186,7 @@ Follow us on twitter, stay tuned for major updates: https://x.com/FOMOFASTER
 /follow all - Follow all traders
 /unfollow <ids/handles> - Unfollow traders (e.g., /unfollow 1,trader2)
 /unfollow all - Unfollow all traders
+/autofollow - Check/toggle auto-follow for new traders (starts ON by default)
 /ca - Get FOMOFASTER token contract address
 
 You'll only receive notifications from traders you follow!",
@@ -539,6 +542,82 @@ Use /unfollow 1,2,3 or /unfollow trader1,trader2 to unfollow traders.";
                     chatId: chatId,
                     text: unfollowResultMessage
                 );
+                break;
+
+            case "/autofollow":
+                var userForAutoFollow = await userService.GetUserByChatIdAsync(chatId);
+
+                if (userForAutoFollow == null)
+                {
+                    await _botClient.SendTextMessageAsync(
+                        chatId: chatId,
+                        text: "❌ Please use /start first to register.",
+                        parseMode: ParseMode.Markdown
+                    );
+                    break;
+                }
+
+                var autoFollowArgs = message.Text?.Split(' ', 2);
+
+                // Just /autofollow - show current status
+                if (autoFollowArgs == null || autoFollowArgs.Length < 2 || string.IsNullOrWhiteSpace(autoFollowArgs[1]))
+                {
+                    var currentStatus = userForAutoFollow.AutoFollowNewTraders ? "ON" : "OFF";
+                    await _botClient.SendTextMessageAsync(
+                        chatId: chatId,
+                        text: $"Your auto-follow for new traders is currently: {currentStatus}\n\nUse /autofollow on or /autofollow off to change it.",
+                        parseMode: ParseMode.Markdown
+                    );
+                    break;
+                }
+
+                // /autofollow on/off - toggle the setting
+                var autoFollowValue = autoFollowArgs[1].Trim().ToLower();
+
+                if (autoFollowValue == "on")
+                {
+                    userForAutoFollow.AutoFollowNewTraders = true;
+                    using var scope1 = _serviceProvider.CreateScope();
+                    var dbContext1 = scope1.ServiceProvider.GetRequiredService<AppDbContext>();
+                    var userToUpdate1 = await dbContext1.Users.FindAsync(userForAutoFollow.Id);
+                    if (userToUpdate1 != null)
+                    {
+                        userToUpdate1.AutoFollowNewTraders = true;
+                        await dbContext1.SaveChangesAsync();
+                    }
+
+                    await _botClient.SendTextMessageAsync(
+                        chatId: chatId,
+                        text: "✅ Auto-follow for new traders is now ON\n\nYou'll automatically follow any new traders added to the system.",
+                        parseMode: ParseMode.Markdown
+                    );
+                }
+                else if (autoFollowValue == "off")
+                {
+                    userForAutoFollow.AutoFollowNewTraders = false;
+                    using var scope2 = _serviceProvider.CreateScope();
+                    var dbContext2 = scope2.ServiceProvider.GetRequiredService<AppDbContext>();
+                    var userToUpdate2 = await dbContext2.Users.FindAsync(userForAutoFollow.Id);
+                    if (userToUpdate2 != null)
+                    {
+                        userToUpdate2.AutoFollowNewTraders = false;
+                        await dbContext2.SaveChangesAsync();
+                    }
+
+                    await _botClient.SendTextMessageAsync(
+                        chatId: chatId,
+                        text: "❌ Auto-follow for new traders is now OFF\n\nYou won't automatically follow new traders added to the system.",
+                        parseMode: ParseMode.Markdown
+                    );
+                }
+                else
+                {
+                    await _botClient.SendTextMessageAsync(
+                        chatId: chatId,
+                        text: "❌ Invalid option. Use /autofollow on or /autofollow off",
+                        parseMode: ParseMode.Markdown
+                    );
+                }
                 break;
 
             case "/ca":

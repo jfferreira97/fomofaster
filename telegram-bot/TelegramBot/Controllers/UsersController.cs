@@ -50,6 +50,7 @@ public class UsersController : ControllerBase
                     firstName = u.FirstName,
                     joinedAt = u.JoinedAt,
                     isActive = u.IsActive,
+                    autoFollowNewTraders = u.AutoFollowNewTraders,
                     trackingCount = userTraderCounts.GetValueOrDefault(u.Id, 0),
                     totalTraders = totalTraders
                 })
@@ -281,8 +282,37 @@ public class UsersController : ControllerBase
             return StatusCode(500, new { status = "error", message = ex.Message });
         }
     }
+
+    [HttpPost("{chatId}/toggle-auto-follow")]
+    public async Task<IActionResult> ToggleAutoFollowNewTraders(long chatId, [FromBody] ToggleAutoFollowRequest request)
+    {
+        try
+        {
+            var user = await _userService.GetUserByChatIdAsync(chatId);
+            if (user == null)
+            {
+                return NotFound(new { status = "error", message = "User not found" });
+            }
+
+            user.AutoFollowNewTraders = request.AutoFollowNewTraders;
+            await _dbContext.SaveChangesAsync();
+
+            return Ok(new
+            {
+                status = "success",
+                message = $"Auto-follow new traders set to {request.AutoFollowNewTraders}",
+                autoFollowNewTraders = user.AutoFollowNewTraders
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error toggling auto-follow for user {ChatId}", chatId);
+            return StatusCode(500, new { status = "error", message = ex.Message });
+        }
+    }
 }
 
 public record AddUserRequest(long ChatId, string? Username, string? FirstName);
 public record SendMessageRequest(long ChatId, string Message);
 public record BroadcastMessageRequest(string Message);
+public record ToggleAutoFollowRequest(bool AutoFollowNewTraders);

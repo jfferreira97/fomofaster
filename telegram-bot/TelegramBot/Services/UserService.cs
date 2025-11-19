@@ -42,7 +42,8 @@ public class UserService : IUserService
                 Username = username,
                 FirstName = firstName,
                 JoinedAt = DateTime.UtcNow,
-                IsActive = true
+                IsActive = true,
+                AutoFollowNewTraders = true // Default to auto-following new traders on user creation
             };
 
             _dbContext.Users.Add(user);

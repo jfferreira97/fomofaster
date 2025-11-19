@@ -159,6 +159,14 @@ public class TraderService : ITraderService
                 followedCount++;
         }
 
+        // Update AutoFollowNewTraders flag
+        var user = await _dbContext.Users.FindAsync(userId);
+        if (user != null)
+        {
+            user.AutoFollowNewTraders = true;
+            await _dbContext.SaveChangesAsync();
+        }
+
         _logger.LogInformation("User {UserId} followed {Count} traders (all)", userId, followedCount);
         return followedCount;
     }
@@ -173,6 +181,14 @@ public class TraderService : ITraderService
             var success = await UnfollowTraderAsync(userId, trader.Id);
             if (success)
                 unfollowedCount++;
+        }
+
+        // Update AutoFollowNewTraders flag
+        var user = await _dbContext.Users.FindAsync(userId);
+        if (user != null)
+        {
+            user.AutoFollowNewTraders = false;
+            await _dbContext.SaveChangesAsync();
         }
 
         _logger.LogInformation("User {UserId} unfollowed {Count} traders (all)", userId, unfollowedCount);

@@ -8,4 +8,5 @@ public class User
     public string? FirstName { get; set; }
     public DateTime JoinedAt { get; set; }
     public bool IsActive { get; set; }
+    public bool AutoFollowNewTraders { get; set; }
 }

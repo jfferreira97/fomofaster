@@ -636,13 +636,14 @@
                                     <th>Username</th>
                                     <th>First Name</th>
                                     <th>Traders Tracking</th>
+                                    <th>Auto-Follow New</th>
                                     <th>Active</th>
                                     <th>Joined At</th>
                                     <th>Actions</th>
                                 </tr>
                             </thead>
                             <tbody id="usersTableBody">
-                                <tr><td colspan="7" style="text-align: center; color: #8a96a0;">Loading...</td></tr>
+                                <tr><td colspan="8" style="text-align: center; color: #8a96a0;">Loading...</td></tr>
                             </tbody>
                         </table>
                     </div>
@@ -1452,7 +1453,7 @@
 
                 if (data.count === 0) {
                     badge.textContent = 'No active users';
-                    tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: #8a96a0;">No users found</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; color: #8a96a0;">No users found</td></tr>';
                     return;
                 }
 
@@ -1465,12 +1466,14 @@
                     const isActiveDisplay = user.isActive
                         ? '<span style="color: #4ade80;">✓ Active</span>'
                         : '<span style="color: #f87171;">✗ Inactive</span>';
+                    const autoFollowCheckbox = `<input type="checkbox" ${user.autoFollowNewTraders ? 'checked' : ''} onchange="toggleAutoFollow(${user.chatId}, this.checked)" style="cursor: pointer; width: 18px; height: 18px;">`;
                     return `
                         <tr>
                             <td>${user.chatId}</td>
                             <td>${user.username || 'N/A'}</td>
                             <td>${user.firstName || 'N/A'}</td>
                             <td>${tradersTracking}</td>
+                            <td style="text-align: center;">${autoFollowCheckbox}</td>
                             <td>${isActiveDisplay}</td>
                             <td>${joinedDate}</td>
                             <td style="display: flex; gap: 6px; flex-wrap: wrap;">
@@ -1574,6 +1577,28 @@
             } catch (error) {
                 console.error('Error making user unfollow all traders:', error);
                 alert('Error making user unfollow all traders');
+            }
+        }
+
+        async function toggleAutoFollow(chatId, autoFollow) {
+            try {
+                const response = await fetch(`/api/users/${chatId}/toggle-auto-follow`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ autoFollowNewTraders: autoFollow })
+                });
+
+                const result = await response.json();
+                if (response.ok && result.status === 'success') {
+                    console.log(`Auto-follow updated for chatId ${chatId}: ${autoFollow}`);
+                } else {
+                    alert('Error: ' + (result.message || 'Unknown error'));
+                    loadUsers(); // Reload to revert checkbox on error
+                }
+            } catch (error) {
+                console.error('Error toggling auto-follow:', error);
+                alert('Error toggling auto-follow');
+                loadUsers(); // Reload to revert checkbox on error
             }
         }
 
