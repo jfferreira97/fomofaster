@@ -1,4 +1,7 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
+using Telegram.Bot;
+using Telegram.Bot.Types.Enums;
 using TelegramBot.Data;
 using TelegramBot.Models;
 
@@ -8,11 +11,23 @@ public class TraderService : ITraderService
 {
     private readonly AppDbContext _dbContext;
     private readonly ILogger<TraderService> _logger;
+    private readonly TelegramBotClient? _botClient;
+    private readonly IServiceProvider _serviceProvider;
 
-    public TraderService(AppDbContext dbContext, ILogger<TraderService> logger)
+    public TraderService(
+        AppDbContext dbContext,
+        ILogger<TraderService> logger,
+        IOptions<TelegramSettings> settings,
+        IServiceProvider serviceProvider)
     {
         _dbContext = dbContext;
         _logger = logger;
+        _serviceProvider = serviceProvider;
+
+        if (!string.IsNullOrEmpty(settings.Value.BotToken))
+        {
+            _botClient = new TelegramBotClient(settings.Value.BotToken);
+        }
     }
 
     public async Task<Trader?> GetTraderByHandleAsync(string handle)
@@ -43,6 +58,7 @@ public class TraderService : ITraderService
     public async Task<Trader> AddOrUpdateTraderAsync(string handle)
     {
         var trader = await GetTraderByHandleAsync(handle);
+        var isNewTrader = trader == null;
 
         if (trader == null)
         {
@@ -63,7 +79,70 @@ public class TraderService : ITraderService
         }
 
         await _dbContext.SaveChangesAsync();
+
+        // Broadcast message to all users if this is a new trader
+        if (isNewTrader && _botClient != null)
+        {
+            await BroadcastNewTraderMessageAsync(trader);
+        }
+
         return trader;
+    }
+
+    private async Task BroadcastNewTraderMessageAsync(Trader trader)
+    {
+        if (_botClient == null)
+            return;
+
+        // Get all active users
+        var activeUsers = await _dbContext.Users
+            .Where(u => u.IsActive)
+            .ToListAsync();
+
+        _logger.LogInformation("Broadcasting new trader {Handle} to {Count} active users", trader.Handle, activeUsers.Count);
+
+        foreach (var user in activeUsers)
+        {
+            try
+            {
+                string message;
+
+                if (user.AutoFollowNewTraders)
+                {
+                    // Auto-follow the user to this trader
+                    await FollowTraderAsync(user.Id, trader.Id);
+
+                    message = $@"🎯 A new sharp FOMO APP trader, [{trader.Handle}](https://x.com/{trader.Handle}), was just added to our services!
+
+✅ This trader's trades will be tracked by you since you have auto-follow ON.
+
+Use /unfollow {trader.Handle} or /unfollow {trader.Id} if you do not desire this trader.
+Use /autofollow off if you want to opt out completely of auto-following new traders.";
+                }
+                else
+                {
+                    message = $@"🎯 A new sharp FOMO APP trader, [{trader.Handle}](https://x.com/{trader.Handle}), was just added to our services!
+
+ℹ️ You are NOT following this trader since you have auto-follow OFF.
+
+Use /follow {trader.Handle} or /follow {trader.Id} if you want to follow them.
+Use /autofollow on if you want to opt in to auto-following new traders.";
+                }
+
+                await _botClient.SendTextMessageAsync(
+                    chatId: user.ChatId,
+                    text: message,
+                    parseMode: ParseMode.Markdown,
+                    disableWebPagePreview: true
+                );
+
+                _logger.LogInformation("Sent new trader notification to user {ChatId}", user.ChatId);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to send new trader notification to user {ChatId}", user.ChatId);
+            }
+        }
     }
 
     public async Task<bool> FollowTraderAsync(int userId, int traderId)
