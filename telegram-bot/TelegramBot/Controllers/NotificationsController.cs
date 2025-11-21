@@ -95,8 +95,7 @@ public class NotificationsController : ControllerBase
 
             string? ticker = null;
             string? trader = null;
-            string? contractAddress = null;
-            Chain? chain = null;
+            ContractLookupResult? lookupResult = null;
 
             // Check if this is a thesis notification
             if (IsThesisNotification(noti.Message))
@@ -150,32 +149,42 @@ public class NotificationsController : ControllerBase
                         if (marketCap.Value >= knownToken.MinMarketCap)
                         {
                             _logger.LogInformation("✅ Market cap matches! Using hardcoded contract: {Address} (Chain: {Chain})", knownToken.ContractAddress, knownToken.Chain);
-                            contractAddress = knownToken.ContractAddress;
-                            chain = knownToken.Chain;
+                            // Create a manual lookup result for known tokens
+                            lookupResult = new ContractLookupResult
+                            {
+                                ContractAddress = knownToken.ContractAddress,
+                                Chain = knownToken.Chain,
+                                Source = ContractAddressSource.KnownToken,
+                                TimesCacheHit = 0,
+                                TimesDexScreenerApiHit = 0,
+                                TimesHeliusApiHit = 0,
+                                LookupDuration = TimeSpan.Zero
+                            };
                         }
                         else
                         {
                             _logger.LogInformation("⚠️  Market cap too low (${0:N0} < ${1:N0}), falling back to lookup", marketCap.Value, knownToken.MinMarketCap);
-                            (contractAddress, chain) = await _solanaService.GetContractAddressAndChainByTickerAndMarketCapAsync(ticker, marketCap);
+                            lookupResult = await _solanaService.GetContractAddressWithTrackingAsync(ticker, marketCap);
                         }
                     }
                     else
                     {
                         // No market cap found (thesis notifications don't have MC)
                         _logger.LogInformation("No market cap found in message, trying lookup without marketcap");
-                        (contractAddress, chain) = await _solanaService.GetContractAddressAndChainByTickerAndMarketCapAsync(ticker, null);
+                        lookupResult = await _solanaService.GetContractAddressWithTrackingAsync(ticker, null);
                     }
                 }
                 else
                 {
                     // Not a known token, use extracted MC
                     _logger.LogInformation("Ticker not in known tokens list, trying lookup (MarketCap: ${MarketCap:N0})", marketCap);
-                    (contractAddress, chain) = await _solanaService.GetContractAddressAndChainByTickerAndMarketCapAsync(ticker, marketCap);
+                    lookupResult = await _solanaService.GetContractAddressWithTrackingAsync(ticker, marketCap);
                 }
 
-                if (!string.IsNullOrEmpty(contractAddress))
+                if (!string.IsNullOrEmpty(lookupResult?.ContractAddress))
                 {
-                    _logger.LogInformation("✅ Resolved contract address: {Address} (Chain: {Chain})", contractAddress, chain);
+                    _logger.LogInformation("✅ Resolved contract address: {Address} (Chain: {Chain}) via {Source} in {Duration}ms",
+                        lookupResult.ContractAddress, lookupResult.Chain, lookupResult.Source, lookupResult.LookupDuration.TotalMilliseconds);
                 }
                 else
                 {
@@ -188,8 +197,8 @@ public class NotificationsController : ControllerBase
             }
 
             // Send to users following this trader (or all if no trader extracted)
-            // Pass marketcap for retry service
-            await _telegramService.SendNotificationToAllUsersAsync(noti, contractAddress, trader, ticker, chain, marketCap);
+            // Pass lookupResult which contains tracking data
+            await _telegramService.SendNotificationToAllUsersAsync(noti, lookupResult, trader, ticker, marketCap);
 
             return Ok(new
             {
@@ -197,7 +206,7 @@ public class NotificationsController : ControllerBase
                 message = "Notification sent to Telegram",
                 ticker = ticker ?? "",
                 trader = trader ?? "",
-                contractAddress = contractAddress ?? ""
+                contractAddress = lookupResult?.ContractAddress ?? ""
             });
         }
         catch (Exception ex)

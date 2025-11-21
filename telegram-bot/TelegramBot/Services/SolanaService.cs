@@ -267,6 +267,104 @@ public class SolanaService : ISolanaService
         return (null, null);
     }
 
+    public async Task<ContractLookupResult> GetContractAddressWithTrackingAsync(string ticker, double? marketCap)
+    {
+        var startTime = DateTime.UtcNow;
+        var result = new ContractLookupResult
+        {
+            TimesCacheHit = 0,
+            TimesDexScreenerApiHit = 0,
+            TimesHeliusApiHit = 0
+        };
+
+        if (string.IsNullOrEmpty(ticker))
+        {
+            _logger.LogWarning("Empty ticker provided");
+            result.LookupDuration = DateTime.UtcNow - startTime;
+            return result;
+        }
+
+        using var scope = _serviceProvider.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        // Check database cache first
+        var cached = await dbContext.CachedTokenAddresses
+            .Where(c => c.Ticker == ticker && c.ExpiresAt > DateTime.UtcNow)
+            .FirstOrDefaultAsync();
+
+        if (cached != null)
+        {
+            result.TimesCacheHit = 1;
+            result.ContractAddress = cached.ContractAddress;
+            result.Chain = Chain.SOL; // Cache is Solana-specific
+            result.Source = ContractAddressSource.Cache;
+
+            // Update last accessed
+            cached.LastAccessed = DateTime.UtcNow;
+            cached.ExpiresAt = DateTime.UtcNow.Add(_cacheExpiration);
+            await dbContext.SaveChangesAsync();
+
+            _logger.LogInformation("💾 Cache hit for ticker: {Ticker} -> {Address}", ticker, cached.ContractAddress);
+            result.LookupDuration = DateTime.UtcNow - startTime;
+            return result;
+        }
+
+        // Strategy: Try DexScreener first (multi-chain), then Helius (Solana only)
+        _logger.LogInformation("Attempting CA lookup for {Ticker} (MarketCap: ${MarketCap:N0})", ticker, marketCap);
+
+        // 1. If we have marketcap, try DexScreener first (multi-chain)
+        if (marketCap.HasValue && marketCap.Value > 0)
+        {
+            _logger.LogInformation("Method 1: DexScreener API with marketcap filter (multi-chain)");
+            result.TimesDexScreenerApiHit = 1;
+
+            var dexScreenerService = scope.ServiceProvider.GetRequiredService<IDexScreenerService>();
+            var (contractAddress, chain) = await dexScreenerService.GetContractAddressAndChainByTickerAndMarketCapAsync(ticker, marketCap.Value);
+
+            if (!string.IsNullOrEmpty(contractAddress))
+            {
+                _logger.LogInformation("✅ DexScreener found CA: {CA} (Chain: {Chain})", contractAddress, chain);
+
+                result.ContractAddress = contractAddress;
+                result.Chain = chain;
+                result.Source = ContractAddressSource.DexScreener;
+
+                // Cache it for future lookups (only if Solana)
+                if (chain == Chain.SOL)
+                {
+                    await AddToCacheInternalAsync(dbContext, ticker, contractAddress);
+                }
+
+                result.LookupDuration = DateTime.UtcNow - startTime;
+                return result;
+            }
+        }
+        else
+        {
+            _logger.LogWarning("⚠️ No marketcap provided, skipping DexScreener lookup");
+        }
+
+        // 2. If DexScreener fails, try Helius wallet scanning (Solana only)
+        _logger.LogInformation("Method 2: Helius wallet scanning");
+        result.TimesHeliusApiHit = 1;
+
+        var heliusResult = await GetContractAddressByTickerAsync(ticker);
+        if (!string.IsNullOrEmpty(heliusResult))
+        {
+            _logger.LogInformation("✅ Helius found CA: {CA} (Chain: SOL)", heliusResult);
+
+            result.ContractAddress = heliusResult;
+            result.Chain = Chain.SOL;
+            result.Source = ContractAddressSource.Helius;
+            result.LookupDuration = DateTime.UtcNow - startTime;
+            return result;
+        }
+
+        _logger.LogWarning("❌ Both methods failed to find CA for {Ticker}", ticker);
+        result.LookupDuration = DateTime.UtcNow - startTime;
+        return result;
+    }
+
     public async void AddToCache(string ticker, string contractAddress)
     {
         if (string.IsNullOrEmpty(ticker) || string.IsNullOrEmpty(contractAddress))

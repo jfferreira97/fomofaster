@@ -54,7 +54,7 @@ public class TelegramService : ITelegramService
         return _botClient != null;
     }
 
-    public async Task SendNotificationToAllUsersAsync(NotificationRequest notification, string? contractAddress = null, string? traderHandle = null, string? ticker = null, Chain? chain = null, double? marketCap = null)
+    public async Task SendNotificationToAllUsersAsync(NotificationRequest notification, ContractLookupResult? lookupResult = null, string? traderHandle = null, string? ticker = null, double? marketCap = null)
     {
         if (_botClient == null)
         {
@@ -96,6 +96,10 @@ public class TelegramService : ITelegramService
             _logger.LogWarning("No active users to send notification to");
             return;
         }
+
+        // Extract contract address and chain from lookup result
+        var contractAddress = lookupResult?.ContractAddress;
+        var chain = lookupResult?.Chain;
 
         // Replace @traderHandle with Twitter link to avoid Telegram interpreting it as a Telegram user
         var processedMessage = notification.Message;
@@ -142,7 +146,14 @@ public class TelegramService : ITelegramService
             HasCA = !string.IsNullOrEmpty(contractAddress),
             ContractAddress = contractAddress,
             Chain = chain,
-            SentAt = DateTime.UtcNow
+            SentAt = DateTime.UtcNow,
+            // Tracking data from lookup
+            ContractAddressSource = lookupResult?.Source,
+            TimesCacheHit = lookupResult?.TimesCacheHit ?? 0,
+            TimesDexScreenerApiHit = lookupResult?.TimesDexScreenerApiHit ?? 0,
+            TimesHeliusApiHit = lookupResult?.TimesHeliusApiHit ?? 0,
+            LookupDuration = lookupResult?.LookupDuration,
+            MarketCapAtNotification = marketCap.HasValue ? (decimal)marketCap.Value : null
         };
         dbContext.Notifications.Add(notificationRecord);
         await dbContext.SaveChangesAsync();
@@ -209,7 +220,15 @@ public class TelegramService : ITelegramService
             totalUsers = totalActiveUsers.Count,
             isManuallyEdited = false,
             isSystemEdited = false,
-            editedAt = (DateTime?)null
+            editedAt = (DateTime?)null,
+            // Tracking data
+            contractAddressSource = notificationRecord.ContractAddressSource?.ToString(),
+            timesCacheHit = notificationRecord.TimesCacheHit,
+            timesDexScreenerApiHit = notificationRecord.TimesDexScreenerApiHit,
+            timesHeliusApiHit = notificationRecord.TimesHeliusApiHit,
+            lookupDuration = notificationRecord.LookupDuration?.TotalMilliseconds,
+            wasRetried = notificationRecord.WasRetried,
+            marketCapAtNotification = notificationRecord.MarketCapAtNotification
         });
 
         _logger.LogInformation("✅ Notification sent to {Success}/{Total} users ({Failed} failed)",

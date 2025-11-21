@@ -122,6 +122,7 @@ public class ContractAddressRetryService : BackgroundService
         {
             // Strategy on retry: Try DexScreener first (with marketcap if available), then Helius
             string? contractAddress = null;
+            ContractAddressSource? source = null;
 
             if (!string.IsNullOrWhiteSpace(item.Ticker))
             {
@@ -132,6 +133,11 @@ public class ContractAddressRetryService : BackgroundService
                     using var dexScope = _serviceProvider.CreateScope();
                     var dexScreenerService = dexScope.ServiceProvider.GetRequiredService<IDexScreenerService>();
                     contractAddress = await dexScreenerService.GetContractAddressByTickerAndMarketCapAsync(item.Ticker, item.MarketCap.Value);
+
+                    if (!string.IsNullOrWhiteSpace(contractAddress))
+                    {
+                        source = ContractAddressSource.DexScreener;
+                    }
                 }
 
                 // Method 2: If DexScreener fails, try Helius wallet scanning
@@ -139,15 +145,21 @@ public class ContractAddressRetryService : BackgroundService
                 {
                     _logger.LogInformation("🔍 Retry Method 2: Helius wallet scanning");
                     contractAddress = await solanaService.GetContractAddressByTickerAsync(item.Ticker);
+
+                    if (!string.IsNullOrWhiteSpace(contractAddress))
+                    {
+                        source = ContractAddressSource.Helius;
+                    }
                 }
             }
 
-            if (!string.IsNullOrWhiteSpace(contractAddress))
+            if (!string.IsNullOrWhiteSpace(contractAddress) && source.HasValue)
             {
                 // Found it! Update the notification
                 await UpdateNotificationWithContractAddressAsync(
                     item.NotificationId,
                     contractAddress,
+                    source.Value,
                     dbContext,
                     userService,
                     hubContext,
@@ -156,8 +168,8 @@ public class ContractAddressRetryService : BackgroundService
 
                 // Remove from queue
                 await RemoveFromQueueAsync(item);
-                _logger.LogInformation("Successfully fetched CA for notification {NotificationId} on retry {RetryCount}",
-                    item.NotificationId, item.RetryCount + 1);
+                _logger.LogInformation("Successfully fetched CA for notification {NotificationId} on retry {RetryCount} via {Source}",
+                    item.NotificationId, item.RetryCount + 1, source);
             }
             else
             {
@@ -214,6 +226,7 @@ public class ContractAddressRetryService : BackgroundService
     private async Task UpdateNotificationWithContractAddressAsync(
         int notificationId,
         string contractAddress,
+        ContractAddressSource source,
         AppDbContext dbContext,
         IUserService userService,
         IHubContext<DashboardHub> hubContext,
@@ -234,6 +247,8 @@ public class ContractAddressRetryService : BackgroundService
         notification.ContractAddress = contractAddress;
         notification.HasCA = true;
         notification.Chain = Chain.SOL; // Solana default
+        notification.ContractAddressSource = source;  // The actual source (DexScreener or Helius)
+        notification.WasRetried = true;  // Mark that this was found via retry service
 
         // Get all sent messages for this notification
         var sentMessages = await dbContext.SentMessages
@@ -303,7 +318,15 @@ public class ContractAddressRetryService : BackgroundService
             totalUsers = totalActiveUsers.Count,
             isManuallyEdited = false,
             isSystemEdited = true,
-            editedAt = DateTime.UtcNow
+            editedAt = DateTime.UtcNow,
+            // Tracking data
+            contractAddressSource = notification.ContractAddressSource?.ToString(),
+            timesCacheHit = notification.TimesCacheHit,
+            timesDexScreenerApiHit = notification.TimesDexScreenerApiHit,
+            timesHeliusApiHit = notification.TimesHeliusApiHit,
+            lookupDuration = notification.LookupDuration?.TotalMilliseconds,
+            wasRetried = notification.WasRetried,
+            marketCapAtNotification = notification.MarketCapAtNotification
         }, stoppingToken);
 
         _logger.LogInformation("System edited {Success}/{Total} messages for notification {NotificationId}",

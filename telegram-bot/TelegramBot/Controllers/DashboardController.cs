@@ -75,12 +75,21 @@ public class DashboardController : ControllerBase
                         trader = n.Trader,
                         hasCA = n.HasCA,
                         contractAddress = n.ContractAddress,
+                        chain = n.Chain?.ToString(),
                         sentAt = n.SentAt,
                         recipientCount = sentData?.RecipientCount ?? 0,
                         isManuallyEdited = sentData?.IsManuallyEdited ?? false,
                         isSystemEdited = sentData?.IsSystemEdited ?? false,
                         editedAt = sentData?.EditedAt,
-                        totalUsers = totalUsers
+                        totalUsers = totalUsers,
+                        // Tracking data
+                        contractAddressSource = n.ContractAddressSource?.ToString(),
+                        timesCacheHit = n.TimesCacheHit,
+                        timesDexScreenerApiHit = n.TimesDexScreenerApiHit,
+                        timesHeliusApiHit = n.TimesHeliusApiHit,
+                        lookupDuration = n.LookupDuration?.TotalMilliseconds,
+                        wasRetried = n.WasRetried,
+                        marketCapAtNotification = n.MarketCapAtNotification
                     };
                 })
                 .OrderBy(n => n.sentAt) // Chronological order

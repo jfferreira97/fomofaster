@@ -960,6 +960,9 @@
                             <div class="recipients-tooltip-arrow"></div>
                         </div>
                     </span>
+                    ${notification.contractAddressSource ? `<span>• CA: ${notification.contractAddressSource}${notification.wasRetried ? ' (retry)' : ''}</span>` : ''}
+                    ${(notification.timesCacheHit > 0 || notification.timesDexScreenerApiHit > 0 || notification.timesHeliusApiHit > 0) ? `<span>• Hits: Cache ${notification.timesCacheHit || 0}, DexScreener ${notification.timesDexScreenerApiHit || 0}, Helius ${notification.timesHeliusApiHit || 0}</span>` : ''}
+                    ${notification.lookupDuration ? `<span>• ${Math.round(notification.lookupDuration)}ms</span>` : ''}
                     ${editBadge}
                     <span class="edit-ca-btn" onclick="toggleEditForm(${notification.id})">• Edit CA</span>
                 `;
@@ -1015,6 +1018,9 @@
                             <div class="recipients-tooltip-arrow"></div>
                         </div>
                     </span>
+                    ${notification.contractAddressSource ? `<span>• CA: ${notification.contractAddressSource}${notification.wasRetried ? ' (retry)' : ''}</span>` : ''}
+                    ${(notification.timesCacheHit > 0 || notification.timesDexScreenerApiHit > 0 || notification.timesHeliusApiHit > 0) ? `<span>• Hits: Cache ${notification.timesCacheHit || 0}, DexScreener ${notification.timesDexScreenerApiHit || 0}, Helius ${notification.timesHeliusApiHit || 0}</span>` : ''}
+                    ${notification.lookupDuration ? `<span>• ${Math.round(notification.lookupDuration)}ms</span>` : ''}
                     ${notification.isManuallyEdited
                         ? `<span class="edited-badge">• Manually Edited ${notification.editedAt ? 'at ' + formatTime(notification.editedAt) : ''}</span>`
                         : notification.isSystemEdited
