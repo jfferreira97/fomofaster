@@ -174,22 +174,13 @@ public class SolanaService : ISolanaService
             return null;
         }
 
-        // Strategy: Try Helius first, then DexScreener
+        // Strategy: Try DexScreener first, then Helius
         _logger.LogInformation("Attempting CA lookup for {Ticker} (MarketCap: ${MarketCap:N0})", ticker, marketCap);
 
-        // 1. Try Helius wallet scanning first
-        _logger.LogInformation("🔍 Method 1: Helius wallet scanning");
-        var heliusResult = await GetContractAddressByTickerAsync(ticker);
-        if (!string.IsNullOrEmpty(heliusResult))
-        {
-            _logger.LogInformation("✅ Helius found CA: {CA}", heliusResult);
-            return heliusResult;
-        }
-
-        // 2. If Helius fails and we have marketcap, try DexScreener
+        // 1. If we have marketcap, try DexScreener first
         if (marketCap.HasValue && marketCap.Value > 0)
         {
-            _logger.LogInformation("🔍 Method 2: DexScreener API with marketcap filter");
+            _logger.LogInformation("🔍 Method 1: DexScreener API with marketcap filter");
             using var scope = _serviceProvider.CreateScope();
             var dexScreenerService = scope.ServiceProvider.GetRequiredService<IDexScreenerService>();
 
@@ -211,6 +202,15 @@ public class SolanaService : ISolanaService
             _logger.LogWarning("⚠️ No marketcap provided, skipping DexScreener lookup");
         }
 
+        // 2. If DexScreener fails, try Helius wallet scanning
+        _logger.LogInformation("🔍 Method 2: Helius wallet scanning");
+        var heliusResult = await GetContractAddressByTickerAsync(ticker);
+        if (!string.IsNullOrEmpty(heliusResult))
+        {
+            _logger.LogInformation("✅ Helius found CA: {CA}", heliusResult);
+            return heliusResult;
+        }
+
         _logger.LogWarning("❌ Both methods failed to find CA for {Ticker}", ticker);
         return null;
     }
@@ -223,22 +223,13 @@ public class SolanaService : ISolanaService
             return (null, null);
         }
 
-        // Strategy: Try Helius first (Solana only), then DexScreener (multi-chain)
+        // Strategy: Try DexScreener first (multi-chain), then Helius (Solana only)
         _logger.LogInformation("Attempting CA lookup for {Ticker} (MarketCap: ${MarketCap:N0})", ticker, marketCap);
 
-        // 1. Try Helius wallet scanning first (Solana only)
-        _logger.LogInformation("Method 1: Helius wallet scanning");
-        var heliusResult = await GetContractAddressByTickerAsync(ticker);
-        if (!string.IsNullOrEmpty(heliusResult))
-        {
-            _logger.LogInformation("✅ Helius found CA: {CA} (Chain: SOL)", heliusResult);
-            return (heliusResult, Chain.SOL);
-        }
-
-        // 2. If Helius fails and we have marketcap, try DexScreener (multi-chain)
+        // 1. If we have marketcap, try DexScreener first (multi-chain)
         if (marketCap.HasValue && marketCap.Value > 0)
         {
-            _logger.LogInformation("Method 2: DexScreener API with marketcap filter (multi-chain)");
+            _logger.LogInformation("Method 1: DexScreener API with marketcap filter (multi-chain)");
             using var scope = _serviceProvider.CreateScope();
             var dexScreenerService = scope.ServiceProvider.GetRequiredService<IDexScreenerService>();
 
@@ -261,6 +252,15 @@ public class SolanaService : ISolanaService
         else
         {
             _logger.LogWarning("⚠️ No marketcap provided, skipping DexScreener lookup");
+        }
+
+        // 2. If DexScreener fails, try Helius wallet scanning (Solana only)
+        _logger.LogInformation("Method 2: Helius wallet scanning");
+        var heliusResult = await GetContractAddressByTickerAsync(ticker);
+        if (!string.IsNullOrEmpty(heliusResult))
+        {
+            _logger.LogInformation("✅ Helius found CA: {CA} (Chain: SOL)", heliusResult);
+            return (heliusResult, Chain.SOL);
         }
 
         _logger.LogWarning("❌ Both methods failed to find CA for {Ticker}", ticker);
