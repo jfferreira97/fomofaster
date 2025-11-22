@@ -106,26 +106,28 @@ public class TraderService : ITraderService
             try
             {
                 string message;
+                // Escape underscores in handle to prevent Markdown parsing issues
+                var escapedHandle = trader.Handle.Replace("_", "\\_");
 
                 if (user.AutoFollowNewTraders)
                 {
                     // Auto-follow the user to this trader
                     await FollowTraderAsync(user.Id, trader.Id);
 
-                    message = $@"🎯 A new sharp FOMO APP trader, [{trader.Handle}](https://x.com/{trader.Handle}), was just added to our services!
+                    message = $@"🎯 A new sharp FOMO APP trader, [{escapedHandle}](https://x.com/{trader.Handle}), was just added to our services!
 
 ✅ This trader's trades will be tracked by you since you have auto-follow ON.
 
-Use /unfollow {trader.Handle} or /unfollow {trader.Id} if you do not desire this trader.
+Use /unfollow {escapedHandle} or /unfollow {trader.Id} if you do not desire this trader.
 Use /autofollow off if you want to opt out completely of auto-following new traders.";
                 }
                 else
                 {
-                    message = $@"🎯 A new sharp FOMO APP trader, [{trader.Handle}](https://x.com/{trader.Handle}), was just added to our services!
+                    message = $@"🎯 A new sharp FOMO APP trader, [{escapedHandle}](https://x.com/{trader.Handle}), was just added to our services!
 
 ℹ️ You are NOT following this trader since you have auto-follow OFF.
 
-Use /follow {trader.Handle} or /follow {trader.Id} if you want to follow them.
+Use /follow {escapedHandle} or /follow {trader.Id} if you want to follow them.
 Use /autofollow on if you want to opt in to auto-following new traders.";
                 }
 

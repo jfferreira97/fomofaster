@@ -626,7 +626,7 @@ Use /unfollow 1,2,3 or /unfollow trader1,trader2 to unfollow traders.";
             case "/ca":
                 await _botClient.SendTextMessageAsync(
                     chatId: chatId,
-                    text: $"{TOKEN_CONTRACT_ADDRESS}",
+                    text: $"`{TOKEN_CONTRACT_ADDRESS}`",
                     parseMode: ParseMode.Markdown
                 );
                 break;
