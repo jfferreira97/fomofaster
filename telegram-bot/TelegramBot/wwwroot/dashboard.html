@@ -726,6 +726,7 @@
                         <option value="SOL">Solana</option>
                         <option value="BASE">Base</option>
                         <option value="BNB">BNB Chain</option>
+                        <option value="MONAD">Monad</option>
                     </select>
                 </div>
                 <button type="submit" class="btn btn-primary">Save Token</button>
@@ -799,7 +800,8 @@
         const CHAIN_TO_DEXSCREENER = {
             'SOL': (ca) => `https://dexscreener.com/solana/${ca}`,
             'BNB': (ca) => `https://dexscreener.com/bsc/${ca}`,
-            'BASE': (ca) => `https://dexscreener.com/base/${ca}`
+            'BASE': (ca) => `https://dexscreener.com/base/${ca}`,
+            'MONAD': (ca) => `https://dexscreener.com/monad/${ca}`
         };
 
         function getDexScreenerUrl(chain, contractAddress) {
@@ -1034,6 +1036,7 @@
                         <option value="SOL">Solana (SOL)</option>
                         <option value="BNB">BNB Chain (BNB)</option>
                         <option value="BASE">Base (BASE)</option>
+                        <option value="MONAD">Monad (MONAD)</option>
                     </select>
                     <div class="edit-ca-form-buttons">
                         <button class="btn-submit" onclick="submitEditCA(${notification.id})">Save</button>

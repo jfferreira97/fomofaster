@@ -4,5 +4,6 @@ public enum Chain
 {
     SOL,
     BNB,
-    BASE
+    BASE,
+    MONAD
 }

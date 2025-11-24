@@ -120,6 +120,7 @@ public class TelegramService : ITelegramService
                 Chain.SOL => $"https://dexscreener.com/solana/{contractAddress}",
                 Chain.BNB => $"https://dexscreener.com/bsc/{contractAddress}",
                 Chain.BASE => $"https://dexscreener.com/base/{contractAddress}",
+                Chain.MONAD => $"https://dexscreener.com/monad/{contractAddress}",
                 _ => $"https://dexscreener.com/solana/{contractAddress}"
             };
 
@@ -325,6 +326,7 @@ public class TelegramService : ITelegramService
             Chain.SOL => $"https://dexscreener.com/solana/{contractAddress}",
             Chain.BNB => $"https://dexscreener.com/bsc/{contractAddress}",
             Chain.BASE => $"https://dexscreener.com/base/{contractAddress}",
+            Chain.MONAD => $"https://dexscreener.com/monad/{contractAddress}",
             _ => $"https://dexscreener.com/solana/{contractAddress}"
         };
 

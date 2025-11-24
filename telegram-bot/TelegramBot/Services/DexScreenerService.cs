@@ -157,6 +157,7 @@ public class DexScreenerService : IDexScreenerService
             "solana" => Chain.SOL,
             "bsc" => Chain.BNB,
             "base" => Chain.BASE,
+            "monad" => Chain.MONAD,
             _ => null
         };
     }
