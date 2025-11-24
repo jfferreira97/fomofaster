@@ -156,7 +156,7 @@ You're now following all {allTradersCount.Count} traders by default, configure a
 /top - view top tokens by activity (e.g., /top 1h, /top 7d)
 /ca - get the official $FOMOFASTER token contract address
 
-Follow us on twitter, stay tuned for major updates: https://x.com/FOMOFASTER
+Follow us on twitter, stay tuned for major updates: https://x.com/FasterLabsDEV
 ",
                     parseMode: ParseMode.Markdown
                 );
