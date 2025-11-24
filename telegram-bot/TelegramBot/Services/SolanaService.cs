@@ -143,8 +143,8 @@ public class SolanaService : ISolanaService
                         {
                             _logger.LogInformation("✅ Found contract address: {Address} for ticker: {Ticker}", mint, ticker);
 
-                            // Cache the result in database
-                            await AddToCacheInternalAsync(dbContext, ticker, mint);
+                            // Cache the result in database (Helius is Solana-only)
+                            await AddToCacheInternalAsync(dbContext, ticker, mint, Chain.SOL);
 
                             return mint;
                         }
@@ -189,10 +189,10 @@ public class SolanaService : ISolanaService
             {
                 _logger.LogInformation("✅ DexScreener found CA: {CA}", dexScreenerResult);
 
-                // Cache it for future lookups
+                // Cache it for future lookups (chain unknown from this API, will be null)
                 using var cacheScope = _serviceProvider.CreateScope();
                 var dbContext = cacheScope.ServiceProvider.GetRequiredService<AppDbContext>();
-                await AddToCacheInternalAsync(dbContext, ticker, dexScreenerResult);
+                await AddToCacheInternalAsync(dbContext, ticker, dexScreenerResult, null);
 
                 return dexScreenerResult;
             }
@@ -238,13 +238,10 @@ public class SolanaService : ISolanaService
             {
                 _logger.LogInformation("✅ DexScreener found CA: {CA} (Chain: {Chain})", contractAddress, chain);
 
-                // Cache it for future lookups (only if Solana, as Helius is Solana-specific)
-                if (chain == Chain.SOL)
-                {
-                    using var cacheScope = _serviceProvider.CreateScope();
-                    var dbContext = cacheScope.ServiceProvider.GetRequiredService<AppDbContext>();
-                    await AddToCacheInternalAsync(dbContext, ticker, contractAddress);
-                }
+                // Cache it for future lookups
+                using var cacheScope = _serviceProvider.CreateScope();
+                var dbContext = cacheScope.ServiceProvider.GetRequiredService<AppDbContext>();
+                await AddToCacheInternalAsync(dbContext, ticker, contractAddress, chain);
 
                 return (contractAddress, chain);
             }
@@ -296,7 +293,7 @@ public class SolanaService : ISolanaService
         {
             result.TimesCacheHit = 1;
             result.ContractAddress = cached.ContractAddress;
-            result.Chain = Chain.SOL; // Cache is Solana-specific
+            result.Chain = cached.Chain ?? Chain.SOL; // Use stored chain, default to SOL for legacy entries
             result.Source = ContractAddressSource.Cache;
 
             // Update last accessed
@@ -329,11 +326,8 @@ public class SolanaService : ISolanaService
                 result.Chain = chain;
                 result.Source = ContractAddressSource.DexScreener;
 
-                // Cache it for future lookups (only if Solana)
-                if (chain == Chain.SOL)
-                {
-                    await AddToCacheInternalAsync(dbContext, ticker, contractAddress);
-                }
+                // Cache it for future lookups (all chains)
+                await AddToCacheInternalAsync(dbContext, ticker, contractAddress, chain);
 
                 result.LookupDuration = DateTime.UtcNow - startTime;
                 return result;
@@ -380,7 +374,7 @@ public class SolanaService : ISolanaService
         _logger.LogInformation("➕ Manually added to cache: {Ticker} -> {Address}", ticker, contractAddress);
     }
 
-    private async Task AddToCacheInternalAsync(AppDbContext dbContext, string ticker, string contractAddress)
+    private async Task AddToCacheInternalAsync(AppDbContext dbContext, string ticker, string contractAddress, Chain? chain = null)
     {
         // Check if already exists (case-sensitive)
         var existing = await dbContext.CachedTokenAddresses
@@ -394,6 +388,7 @@ public class SolanaService : ISolanaService
         {
             // Update existing
             existing.ContractAddress = contractAddress;
+            existing.Chain = chain;
             existing.LastAccessed = now;
             existing.ExpiresAt = expiresAt;
         }
@@ -404,6 +399,7 @@ public class SolanaService : ISolanaService
             {
                 Ticker = ticker,
                 ContractAddress = contractAddress,
+                Chain = chain,
                 LastAccessed = now,
                 ExpiresAt = expiresAt
             });
