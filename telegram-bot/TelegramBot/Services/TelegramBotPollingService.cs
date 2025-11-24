@@ -153,7 +153,7 @@ You're now following all {allTradersCount.Count} traders by default, configure a
 /follow - follow specific traders
 /unfollow - unfollow specific traders
 /autofollow - check/toggle auto-follow for new traders (starts ON by default)
-/top - view top tokens by activity (e.g., /top 1h, /top 7d)
+/top - view top tokens (e.g., /top 1h, /top sol 1d, /top sol,monad 6h)
 /ca - get the official $FOMOFASTER token contract address
 
 Follow us on twitter, stay tuned for major updates: https://x.com/FasterLabsDEV
@@ -189,7 +189,7 @@ Follow us on twitter, stay tuned for major updates: https://x.com/FasterLabsDEV
 /unfollow <ids/handles> - Unfollow traders (e.g., /unfollow 1,trader2)
 /unfollow all - Unfollow all traders
 /autofollow - Check/toggle auto-follow for new traders (starts ON by default)
-/top <period> - View top tokens by activity (e.g., /top 1h, /top 1d, /top 7d)
+/top [chains] <period> - Top tokens (e.g., /top 1h, /top sol 1d, /top sol,monad 6h)
 /ca - Get FOMOFASTER token contract address
 
 You'll only receive notifications from traders you follow!",
@@ -632,41 +632,66 @@ Use /unfollow 1,2,3 or /unfollow trader1,trader2 to unfollow traders.";
                 break;
 
             case "/top":
-                var topArgs = message.Text?.Split(' ', 2);
-                if (topArgs == null || topArgs.Length < 2 || string.IsNullOrWhiteSpace(topArgs[1]))
+                var topArgs = message.Text?.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                if (topArgs == null || topArgs.Length < 2)
                 {
                     await _botClient.SendTextMessageAsync(
                         chatId: chatId,
-                        text: "❌ Please specify a time period.\n\nExamples:\n/top 1h - Last 1 hour\n/top 6h - Last 6 hours\n/top 1d - Last 1 day\n/top 7d - Last 7 days",
+                        text: "Usage: `/top [chains] <period>`\n\nExamples:\n`/top 1h` - All chains, 1 hour\n`/top sol 1d` - Solana only\n`/top sol,monad 6h` - Multiple chains\n\nChains: sol/solana, bnb/bsc, base, monad",
                         parseMode: ParseMode.Markdown
                     );
                     break;
                 }
 
-                var periodInput = topArgs[1].Trim().ToLower();
+                // Parse arguments: chains and period can be in any order
+                List<Chain> chainFilters = new();
                 TimeSpan? period = null;
                 string periodDisplay = "";
 
-                // Parse period: {number}h or {number}d
-                if (periodInput.EndsWith("h") && int.TryParse(periodInput[..^1], out var hours) && hours > 0 && hours <= 168)
+                foreach (var arg in topArgs.Skip(1))
                 {
-                    period = TimeSpan.FromHours(hours);
-                    periodDisplay = hours == 1 ? "1 hour" : $"{hours} hours";
-                }
-                else if (periodInput.EndsWith("d") && int.TryParse(periodInput[..^1], out var days) && days > 0 && days <= 30)
-                {
-                    period = TimeSpan.FromDays(days);
-                    periodDisplay = days == 1 ? "1 day" : $"{days} days";
+                    var argLower = arg.Trim().ToLower();
+
+                    // Try parse as period first
+                    if (argLower.EndsWith("h") && int.TryParse(argLower[..^1], out var hours) && hours > 0 && hours <= 168)
+                    {
+                        period = TimeSpan.FromHours(hours);
+                        periodDisplay = hours == 1 ? "1 hour" : $"{hours} hours";
+                    }
+                    else if (argLower.EndsWith("d") && int.TryParse(argLower[..^1], out var days) && days > 0 && days <= 30)
+                    {
+                        period = TimeSpan.FromDays(days);
+                        periodDisplay = days == 1 ? "1 day" : $"{days} days";
+                    }
+                    else
+                    {
+                        // Try parse as chain(s)
+                        var chainParts = argLower.Split(',', StringSplitOptions.RemoveEmptyEntries);
+                        foreach (var chainStr in chainParts)
+                        {
+                            var trimmed = chainStr.Trim();
+                            Chain? parsedChain = trimmed switch
+                            {
+                                "sol" or "solana" => Chain.SOL,
+                                "bnb" or "bsc" => Chain.BNB,
+                                "base" => Chain.BASE,
+                                "monad" => Chain.MONAD,
+                                _ => null
+                            };
+
+                            if (parsedChain.HasValue && !chainFilters.Contains(parsedChain.Value))
+                            {
+                                chainFilters.Add(parsedChain.Value);
+                            }
+                        }
+                    }
                 }
 
+                // Default to 24h if no period specified
                 if (period == null)
                 {
-                    await _botClient.SendTextMessageAsync(
-                        chatId: chatId,
-                        text: "❌ Invalid time period. Use format: {number}h or {number}d\n\nExamples:\n/top 1h - Last 1 hour\n/top 6h - Last 6 hours\n/top 1d - Last 1 day\n/top 7d - Last 7 days\n\nMax: 168h (7 days) or 30d",
-                        parseMode: ParseMode.Markdown
-                    );
-                    break;
+                    period = TimeSpan.FromDays(1);
+                    periodDisplay = "24 hours";
                 }
 
                 using (var scopeTop = _serviceProvider.CreateScope())
@@ -674,9 +699,17 @@ Use /unfollow 1,2,3 or /unfollow trader1,trader2 to unfollow traders.";
                     var dbContextTop = scopeTop.ServiceProvider.GetRequiredService<AppDbContext>();
                     var cutoff = DateTime.UtcNow - period.Value;
 
-                    // Query notifications in time range, group by ticker, get latest CA for each
-                    var tokenStats = await dbContextTop.Notifications
-                        .Where(n => n.SentAt >= cutoff && n.Ticker != null)
+                    // Build query with optional chain filter
+                    var query = dbContextTop.Notifications
+                        .Where(n => n.SentAt >= cutoff && n.Ticker != null);
+
+                    if (chainFilters.Count > 0)
+                    {
+                        query = query.Where(n => n.Chain != null && chainFilters.Contains(n.Chain.Value));
+                    }
+
+                    // Query notifications in time range, group by ticker, get latest CA and Chain for each
+                    var tokenStats = await query
                         .GroupBy(n => n.Ticker)
                         .Select(g => new
                         {
@@ -686,7 +719,10 @@ Use /unfollow 1,2,3 or /unfollow trader1,trader2 to unfollow traders.";
                             SellCount = g.Count(n => n.Message.Contains("sold")),
                             ContractAddress = g.OrderByDescending(n => n.SentAt)
                                 .Select(n => n.ContractAddress)
-                                .FirstOrDefault(ca => ca != null)
+                                .FirstOrDefault(ca => ca != null),
+                            Chain = g.OrderByDescending(n => n.SentAt)
+                                .Select(n => n.Chain)
+                                .FirstOrDefault()
                         })
                         .OrderByDescending(x => x.TotalTrades)
                         .Take(20)
@@ -707,13 +743,19 @@ Use /unfollow 1,2,3 or /unfollow trader1,trader2 to unfollow traders.";
                     {
                         var stat = tokenStats[i];
                         var medal = i switch { 0 => "🥇", 1 => "🥈", 2 => "🥉", _ => $"{i + 1}." };
-                        var caDisplay = !string.IsNullOrEmpty(stat.ContractAddress)
+
+                        string caDisplay = !string.IsNullOrEmpty(stat.ContractAddress)
                             ? $"\n`{stat.ContractAddress}`"
                             : "";
+
                         lines.Add($"{medal} *{stat.Ticker}* - {stat.TotalTrades} trades ({stat.BuyCount} 🟢, {stat.SellCount} 🔴){caDisplay}");
                     }
 
-                    var topMessage = $"📊 *Top Tokens* (Last {periodDisplay})\n\n{string.Join("\n\n", lines)}";
+                    // Build header with chain filter info
+                    var chainInfo = chainFilters.Count > 0
+                        ? $" ({string.Join(", ", chainFilters)})"
+                        : " (All Chains)";
+                    var topMessage = $"📊 *Top Tokens*{chainInfo} (Last {periodDisplay})\n\n{string.Join("\n\n", lines)}";
 
                     await _botClient.SendTextMessageAsync(
                         chatId: chatId,
