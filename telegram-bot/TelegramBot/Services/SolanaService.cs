@@ -42,9 +42,9 @@ public class SolanaService : ISolanaService
         using var scope = _serviceProvider.CreateScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
-        // Check database cache first
+        // Check database cache first (case-sensitive: GMONAD != gmonad)
         var cached = await dbContext.CachedTokenAddresses
-            .Where(c => c.Ticker == ticker && c.ExpiresAt > DateTime.UtcNow)
+            .Where(c => EF.Functions.Collate(c.Ticker, "BINARY") == ticker && c.ExpiresAt > DateTime.UtcNow)
             .FirstOrDefaultAsync();
 
         if (cached != null)
@@ -287,9 +287,9 @@ public class SolanaService : ISolanaService
         using var scope = _serviceProvider.CreateScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
-        // Check database cache first
+        // Check database cache first (case-sensitive: GMONAD != gmonad)
         var cached = await dbContext.CachedTokenAddresses
-            .Where(c => c.Ticker == ticker && c.ExpiresAt > DateTime.UtcNow)
+            .Where(c => EF.Functions.Collate(c.Ticker, "BINARY") == ticker && c.ExpiresAt > DateTime.UtcNow)
             .FirstOrDefaultAsync();
 
         if (cached != null)
@@ -382,9 +382,9 @@ public class SolanaService : ISolanaService
 
     private async Task AddToCacheInternalAsync(AppDbContext dbContext, string ticker, string contractAddress)
     {
-        // Check if already exists
+        // Check if already exists (case-sensitive)
         var existing = await dbContext.CachedTokenAddresses
-            .Where(c => c.Ticker == ticker)
+            .Where(c => EF.Functions.Collate(c.Ticker, "BINARY") == ticker)
             .FirstOrDefaultAsync();
 
         var now = DateTime.UtcNow;
