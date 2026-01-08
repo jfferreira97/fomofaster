@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FomoFaster - Never Miss a Trade</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <nav>
+        <div class="container">
+            <a href="/" class="logo">FASTERLABS</a>
+            <div class="nav-right">
+                <a href="/">home</a>
+                <a href="#features">features</a>
+                <a href="#how">how it works</a>
+                <a href="https://t.me/YOUR_BOT" class="tg-link">telegram ↗</a>
+            </div>
+        </div>
+    </nav>
+
+    <section class="hero">
+        <div class="container">
+            <div class="hero-tag">FOMOFASTER</div>
+            <h1>stop missing out</h1>
+            <p class="big">real-time notifications when top traders move.<br>no bullshit. just alerts.</p>
+            <a href="https://t.me/YOUR_BOT" class="btn-main">start telegram bot</a>
+            <div class="live-counter">
+                <span class="dot"></span>
+                <span id="notification-count">10,247</span> notifications sent today
+            </div>
+        </div>
+    </section>
+
+    <section id="features" class="product">
+        <div class="container">
+            <div class="section-header">
+                <span class="label">FEATURES</span>
+                <h2>what you get</h2>
+            </div>
+
+            <div class="product-grid">
+                <div class="feature">
+                    <h3>instant alerts</h3>
+                    <p>trader makes a move, you get pinged in telegram. that's it. no refresh spam, no checking apps every 5 seconds.</p>
+                </div>
+
+                <div class="feature">
+                    <h3>follow who matters</h3>
+                    <p>pick specific traders or follow everyone. auto-follow new traders or manually curate your list. your feed, your rules.</p>
+                </div>
+
+                <div class="feature">
+                    <h3>multi-chain</h3>
+                    <p>solana, monad, whatever. if they're trading it, you're hearing about it.</p>
+                </div>
+
+                <div class="feature">
+                    <h3>top tokens</h3>
+                    <p>see what's trending by chain and timeframe. <code>/top sol 1h</code> shows you what's hot on solana in the last hour.</p>
+                </div>
+
+                <div class="feature">
+                    <h3>smart parsing</h3>
+                    <p>extracts trader handles, amounts, contract addresses. everything formatted and ready to copy.</p>
+                </div>
+
+                <div class="feature">
+                    <h3>zero setup</h3>
+                    <p>message the bot, type <code>/start</code>, done. you're already following all traders by default.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="demo">
+        <div class="container">
+            <div class="demo-window">
+                <div class="window-bar">
+                    <span class="window-title">telegram</span>
+                    <div class="window-dots">
+                        <span></span><span></span><span></span>
+                    </div>
+                </div>
+                <div class="demo-messages">
+                    <div class="msg">
+                        <div class="msg-header">You</div>
+                        <div class="msg-content">/start</div>
+                    </div>
+                    <div class="msg bot">
+                        <div class="msg-header">FOMOFASTER Bot</div>
+                        <div class="msg-content">you're now following all 127 traders. type /help for commands</div>
+                    </div>
+                    <div class="msg bot">
+                        <div class="msg-header">FOMOFASTER Bot</div>
+                        <div class="msg-content notification">
+                            <strong>@ansem</strong> bought $2.5K<br>
+                            <code>7xKXY...bonk</code><br>
+                            <span class="chain-badge">SOLANA</span>
+                        </div>
+                    </div>
+                    <div class="msg bot">
+                        <div class="msg-header">FOMOFASTER Bot</div>
+                        <div class="msg-content notification">
+                            <strong>@blknoiz06</strong> sold $8.1K<br>
+                            <code>9mPQZ...pump</code><br>
+                            <span class="chain-badge">MONAD</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section id="how" class="how">
+        <div class="container">
+            <div class="section-header">
+                <span class="label">HOW IT WORKS</span>
+                <h2>dead simple</h2>
+            </div>
+
+            <div class="flow">
+                <div class="flow-step">
+                    <div class="step-num">01</div>
+                    <h3>we watch</h3>
+                    <p>we track top traders 24/7. when they make a move, we catch it instantly</p>
+                </div>
+                <div class="flow-arrow">→</div>
+                <div class="flow-step">
+                    <div class="step-num">02</div>
+                    <h3>you choose</h3>
+                    <p>follow everyone or pick specific traders. only get notifications from who you follow</p>
+                </div>
+                <div class="flow-arrow">→</div>
+                <div class="flow-step">
+                    <div class="step-num">03</div>
+                    <h3>we notify</h3>
+                    <p>trade happens, you get pinged. trader name, amount, contract address, everything</p>
+                </div>
+                <div class="flow-arrow">→</div>
+                <div class="flow-step">
+                    <div class="step-num">04</div>
+                    <h3>you act</h3>
+                    <p>copy the contract, check the chart, make your move. all from telegram</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="commands">
+        <div class="container">
+            <div class="section-header">
+                <span class="label">COMMANDS</span>
+                <h2>telegram bot</h2>
+            </div>
+
+            <div class="cmd-grid">
+                <div class="cmd">
+                    <code>/start</code>
+                    <p>subscribe + auto-follow all traders</p>
+                </div>
+                <div class="cmd">
+                    <code>/list</code>
+                    <p>see all traders in the system</p>
+                </div>
+                <div class="cmd">
+                    <code>/mytraders</code>
+                    <p>check who you're following</p>
+                </div>
+                <div class="cmd">
+                    <code>/follow 1,2,3</code>
+                    <p>follow specific traders by id</p>
+                </div>
+                <div class="cmd">
+                    <code>/follow trader1,trader2</code>
+                    <p>follow by handle name</p>
+                </div>
+                <div class="cmd">
+                    <code>/unfollow all</code>
+                    <p>unfollow everyone</p>
+                </div>
+                <div class="cmd">
+                    <code>/autofollow</code>
+                    <p>toggle auto-follow for new traders</p>
+                </div>
+                <div class="cmd">
+                    <code>/top 1h</code>
+                    <p>trending tokens last hour</p>
+                </div>
+                <div class="cmd">
+                    <code>/top sol 1d</code>
+                    <p>solana trending tokens 24h</p>
+                </div>
+                <div class="cmd">
+                    <code>/top sol,monad 6h</code>
+                    <p>multi-chain trending 6h</p>
+                </div>
+                <div class="cmd">
+                    <code>/ca</code>
+                    <p>get $FOMOFASTER token address</p>
+                </div>
+                <div class="cmd">
+                    <code>/help</code>
+                    <p>show all commands</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="token">
+        <div class="container">
+            <div class="token-box">
+                <div class="token-header">
+                    <span class="label">TOKEN</span>
+                    <h2>$FOMOFASTER</h2>
+                </div>
+                <div class="token-ca">
+                    <input type="text" id="ca-input" value="6gCEGUjPisdGFc6FhRGL43hoD263dRF81i2L3bo5bonk" readonly>
+                    <button onclick="copyCA()">copy</button>
+                </div>
+                <a href="https://x.com/FasterLabsDEV" target="_blank" class="twitter-link">@FasterLabsDEV on X ↗</a>
+            </div>
+        </div>
+    </section>
+
+    <footer>
+        <div class="container">
+            <div class="footer-grid">
+                <div class="footer-col">
+                    <div class="footer-logo">FASTERLABS</div>
+                    <p>never miss a trade</p>
+                </div>
+                <div class="footer-col">
+                    <h4>product</h4>
+                    <div class="footer-links">
+                        <a href="#features">features</a>
+                        <a href="#how">how it works</a>
+                    </div>
+                </div>
+                <div class="footer-col">
+                    <h4>connect</h4>
+                    <div class="footer-links">
+                        <a href="https://t.me/YOUR_BOT" target="_blank">telegram</a>
+                        <a href="https://x.com/FasterLabsDEV" target="_blank">twitter</a>
+                    </div>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>2025 FASTER LABS</p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="script.js"></script>
+</body>
+</html>

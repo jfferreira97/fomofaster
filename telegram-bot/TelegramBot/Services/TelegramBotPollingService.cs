@@ -19,7 +19,7 @@ public class TelegramBotPollingService : BackgroundService
     private int _offset = 0;
 
     // FOMOFASTER token contract address - update this when token launches
-    private const string TOKEN_CONTRACT_ADDRESS = "We don't have an official token yet. Coming soon!";
+    private const string TOKEN_CONTRACT_ADDRESS = "6gCEGUjPisdGFc6FhRGL43hoD263dRF81i2L3bo5bonk";
 
     public TelegramBotPollingService(
         IOptions<TelegramSettings> settings,
