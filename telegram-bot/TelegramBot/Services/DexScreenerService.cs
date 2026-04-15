@@ -214,11 +214,22 @@ public class DexScreenerService : IDexScreenerService
             return $"low_liquidity_abs:{pair.Liquidity.Usd:F0}";
 
         var liqToMcapPercent = (pair.Liquidity.Usd.Value / pair.MarketCap.Value) * 100;
-        if (liqToMcapPercent < _filterSettings.MinLiquidityToMarketCapRatioPercent ||
+        var minLiqRatio = GetMinLiqRatioForMarketCap(pair.MarketCap.Value);
+        if (liqToMcapPercent < minLiqRatio ||
             liqToMcapPercent > _filterSettings.MaxLiquidityToMarketCapRatioPercent)
             return $"liq_ratio:{liqToMcapPercent:F1}%";
 
         return null;
+    }
+
+    private double GetMinLiqRatioForMarketCap(double marketCap)
+    {
+        foreach (var range in _filterSettings.MinLiquidityToMarketCapRatioRanges.OrderBy(r => r.MaxMarketCap))
+        {
+            if (marketCap < range.MaxMarketCap)
+                return range.MinRatioPercent;
+        }
+        return _filterSettings.MinLiquidityToMarketCapRatioRanges.LastOrDefault()?.MinRatioPercent ?? 5.0;
     }
 
     private double CalculatePairScore(DexScreenerPair pair, double expectedMarketCap)

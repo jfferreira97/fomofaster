@@ -25,11 +25,20 @@ public class DexScreenerFilterSettings
     };
 
     /// <summary>
-    /// Minimum liquidity to marketcap ratio (as percentage)
-    /// Example: 5 = liquidity should be at least 5% of marketcap
-    /// Prevents fake pools with billion dollar marketcaps but only $10K liquidity
+    /// Tiered minimum liquidity to marketcap ratio (as percentage), by marketcap tier.
+    /// Large caps have naturally lower liq/mc ratios — a flat minimum rejects legit tokens.
     /// </summary>
-    public double MinLiquidityToMarketCapRatioPercent { get; set; } = 5.0;
+    public List<MinLiqRatioRange> MinLiquidityToMarketCapRatioRanges { get; set; } = new()
+    {
+        // Under $2M: 5% min — filters rug pools
+        new MinLiqRatioRange { MaxMarketCap = 2_000_000, MinRatioPercent = 5.0 },
+
+        // $2M–$10M: 2% min
+        new MinLiqRatioRange { MaxMarketCap = 10_000_000, MinRatioPercent = 2.0 },
+
+        // Above $10M: 0.5% min — just blocks near-zero liq scam pairs
+        new MinLiqRatioRange { MaxMarketCap = double.MaxValue, MinRatioPercent = 0.5 }
+    };
 
     /// <summary>
     /// Maximum liquidity to marketcap ratio (as percentage)
@@ -54,6 +63,12 @@ public class DexScreenerFilterSettings
         "bsc",
         "base"
     };
+}
+
+public class MinLiqRatioRange
+{
+    public double MaxMarketCap { get; set; }
+    public double MinRatioPercent { get; set; }
 }
 
 /// <summary>
