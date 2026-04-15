@@ -387,7 +387,7 @@ Use /unfollow 1,2,3 or /unfollow trader1,trader2 to unfollow traders.";
                         if (!success)
                         {
                             // Check if trader exists
-                            var trader = await traderService.GetTraderByHandleAsync(handle);
+                            var trader = await traderService.GetTraderByHandleIgnoreCaseAsync(handle);
                             if (trader == null)
                             {
                                 notFoundList.Add(part);
@@ -512,7 +512,7 @@ Use /unfollow 1,2,3 or /unfollow trader1,trader2 to unfollow traders.";
                         if (!success)
                         {
                             // Check if trader exists
-                            var trader = await traderService.GetTraderByHandleAsync(handle);
+                            var trader = await traderService.GetTraderByHandleIgnoreCaseAsync(handle);
                             if (trader == null)
                             {
                                 unfollowNotFoundList.Add(part);

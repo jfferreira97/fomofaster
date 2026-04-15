@@ -4,7 +4,7 @@ namespace TelegramBot.Services;
 
 public interface ITraderService
 {
-    Task<Trader?> GetTraderByHandleAsync(string handle);
+    Task<Trader?> GetTraderByHandleIgnoreCaseAsync(string handle);
     Task<Trader?> GetTraderByIdAsync(int traderId);
     Task<List<Trader>> GetAllTradersAsync();
     Task<List<Trader>> GetTradersByUserIdAsync(int userId);

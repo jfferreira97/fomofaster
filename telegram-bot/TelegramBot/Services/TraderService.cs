@@ -30,9 +30,9 @@ public class TraderService : ITraderService
         }
     }
 
-    public async Task<Trader?> GetTraderByHandleAsync(string handle)
+    public async Task<Trader?> GetTraderByHandleIgnoreCaseAsync(string handle)
     {
-        return await _dbContext.Traders.FirstOrDefaultAsync(t => t.Handle == handle);
+        return await _dbContext.Traders.FirstOrDefaultAsync(t => t.Handle.ToLower() == handle.ToLower());
     }
 
     public async Task<Trader?> GetTraderByIdAsync(int traderId)
@@ -57,7 +57,7 @@ public class TraderService : ITraderService
 
     public async Task<Trader> AddOrUpdateTraderAsync(string handle)
     {
-        var trader = await GetTraderByHandleAsync(handle);
+        var trader = await GetTraderByHandleIgnoreCaseAsync(handle);
         var isNewTrader = trader == null;
 
         if (trader == null)
@@ -74,6 +74,11 @@ public class TraderService : ITraderService
         }
         else
         {
+            if (trader.Handle != handle)
+            {
+                _logger.LogInformation("Trader handle casing updated: {OldHandle} => {NewHandle}", trader.Handle, handle);
+                trader.Handle = handle;
+            }
             trader.LastSeenAt = DateTime.UtcNow;
             _logger.LogInformation("Trader updated: Handle={Handle}", handle);
         }
@@ -172,7 +177,7 @@ Use /autofollow on if you want to opt in to auto-following new traders.";
 
     public async Task<bool> FollowTraderByHandleAsync(int userId, string handle)
     {
-        var trader = await GetTraderByHandleAsync(handle);
+        var trader = await GetTraderByHandleIgnoreCaseAsync(handle);
         if (trader == null)
             return false;
 
@@ -196,7 +201,7 @@ Use /autofollow on if you want to opt in to auto-following new traders.";
 
     public async Task<bool> UnfollowTraderByHandleAsync(int userId, string handle)
     {
-        var trader = await GetTraderByHandleAsync(handle);
+        var trader = await GetTraderByHandleIgnoreCaseAsync(handle);
         if (trader == null)
             return false;
 
@@ -221,7 +226,7 @@ Use /autofollow on if you want to opt in to auto-following new traders.";
 
     public async Task<List<int>> GetFollowerUserIdsForTraderHandleAsync(string handle)
     {
-        var trader = await GetTraderByHandleAsync(handle);
+        var trader = await GetTraderByHandleIgnoreCaseAsync(handle);
         if (trader == null)
             return new List<int>();
 
@@ -291,7 +296,7 @@ Use /autofollow on if you want to opt in to auto-following new traders.";
 
     public async Task<bool> DeleteTraderByHandleAsync(string handle)
     {
-        var trader = await GetTraderByHandleAsync(handle);
+        var trader = await GetTraderByHandleIgnoreCaseAsync(handle);
         if (trader == null)
             return false;
 
