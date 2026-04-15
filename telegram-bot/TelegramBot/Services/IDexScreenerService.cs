@@ -8,5 +8,5 @@ public interface IDexScreenerService
 
     Task<string?> GetContractAddressByTickerAndMarketCapAsync(string ticker, double expectedMarketCap);
 
-    Task<(string? contractAddress, Chain? chain)> GetContractAddressAndChainByTickerAndMarketCapAsync(string ticker, double expectedMarketCap);
+    Task<(string? contractAddress, Chain? chain, List<LookupCandidate> candidates)> GetContractAddressAndChainByTickerAndMarketCapAsync(string ticker, double expectedMarketCap);
 }

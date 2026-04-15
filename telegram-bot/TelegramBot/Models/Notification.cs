@@ -21,4 +21,7 @@ public class Notification
 
     // Market data at notification time
     public decimal? MarketCapAtNotification { get; set; }
+
+    // DexScreener lookup diagnostics (JSON array of LookupCandidate)
+    public string? LookupDiagnostics { get; set; }
 }

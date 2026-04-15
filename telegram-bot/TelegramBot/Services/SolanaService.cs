@@ -233,7 +233,7 @@ public class SolanaService : ISolanaService
             using var scope = _serviceProvider.CreateScope();
             var dexScreenerService = scope.ServiceProvider.GetRequiredService<IDexScreenerService>();
 
-            var (contractAddress, chain) = await dexScreenerService.GetContractAddressAndChainByTickerAndMarketCapAsync(ticker, marketCap.Value);
+            var (contractAddress, chain, _) = await dexScreenerService.GetContractAddressAndChainByTickerAndMarketCapAsync(ticker, marketCap.Value);
             if (!string.IsNullOrEmpty(contractAddress))
             {
                 _logger.LogInformation("✅ DexScreener found CA: {CA} (Chain: {Chain})", contractAddress, chain);
@@ -316,7 +316,9 @@ public class SolanaService : ISolanaService
             result.TimesDexScreenerApiHit = 1;
 
             var dexScreenerService = scope.ServiceProvider.GetRequiredService<IDexScreenerService>();
-            var (contractAddress, chain) = await dexScreenerService.GetContractAddressAndChainByTickerAndMarketCapAsync(ticker, marketCap.Value);
+            var (contractAddress, chain, candidates) = await dexScreenerService.GetContractAddressAndChainByTickerAndMarketCapAsync(ticker, marketCap.Value);
+
+            result.LookupCandidates = candidates;
 
             if (!string.IsNullOrEmpty(contractAddress))
             {

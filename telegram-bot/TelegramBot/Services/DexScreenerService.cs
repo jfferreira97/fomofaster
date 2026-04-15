@@ -87,7 +87,7 @@ public class DexScreenerService : IDexScreenerService
 
         // Filter pairs
         var candidates = response.Pairs
-            .Where(p => IsValidPair(p, minMarketCap, maxMarketCap))
+            .Where(p => GetRejectionReason(p, minMarketCap, maxMarketCap) == null)
             .OrderByDescending(p => CalculatePairScore(p, expectedMarketCap))
             .ToList();
 
@@ -105,14 +105,14 @@ public class DexScreenerService : IDexScreenerService
         return bestMatch.BaseToken?.Address;
     }
 
-    public async Task<(string? contractAddress, Chain? chain)> GetContractAddressAndChainByTickerAndMarketCapAsync(string ticker, double expectedMarketCap)
+    public async Task<(string? contractAddress, Chain? chain, List<LookupCandidate> candidates)> GetContractAddressAndChainByTickerAndMarketCapAsync(string ticker, double expectedMarketCap)
     {
         var response = await SearchTokenByTickerAsync(ticker);
 
         if (response?.Pairs == null || response.Pairs.Count == 0)
         {
             _logger.LogWarning("No pairs found for ticker {Ticker}", ticker);
-            return (null, null);
+            return (null, null, new List<LookupCandidate>());
         }
 
         // Get tolerance percentage for this marketcap
@@ -124,27 +124,47 @@ public class DexScreenerService : IDexScreenerService
         var minMarketCap = expectedMarketCap / (1 + tolerancePercent / 100.0);
         var maxMarketCap = expectedMarketCap * (1 + tolerancePercent / 100.0);
 
-        // Filter pairs
-        var candidates = response.Pairs
-            .Where(p => IsValidPair(p, minMarketCap, maxMarketCap))
-            .OrderByDescending(p => CalculatePairScore(p, expectedMarketCap))
+        // Build diagnostics for all candidates
+        var allCandidates = response.Pairs
+            .Where(p => p.BaseToken?.Address != null && p.MarketCap != null)
+            .Select(p => new LookupCandidate
+            {
+                CA = p.BaseToken!.Address!,
+                MarketCap = p.MarketCap!.Value,
+                RejectionReason = GetRejectionReason(p, minMarketCap, maxMarketCap)
+            })
+            .OrderBy(c => c.MarketCap)
             .ToList();
 
-        if (candidates.Count == 0)
+        var validCandidates = allCandidates
+            .Where(c => c.RejectionReason == null)
+            .ToList();
+
+        if (validCandidates.Count == 0)
         {
             _logger.LogWarning("No valid pairs found for ticker {Ticker} with marketcap ${MarketCap:N0} (±{Tolerance}%)",
                 ticker, expectedMarketCap, tolerancePercent);
-            return (null, null);
+            return (null, null, allCandidates);
         }
 
-        var bestMatch = candidates.First();
-        var contractAddress = bestMatch.BaseToken?.Address;
-        var chain = MapChainIdToChain(bestMatch.ChainId);
+        // Pick best match by score among valid pairs
+        var bestPair = response.Pairs
+            .Where(p => validCandidates.Any(c => c.CA == p.BaseToken?.Address))
+            .OrderByDescending(p => CalculatePairScore(p, expectedMarketCap))
+            .First();
+
+        var contractAddress = bestPair.BaseToken?.Address;
+        var chain = MapChainIdToChain(bestPair.ChainId);
+
+        // Mark winner in candidates list
+        var winner = allCandidates.FirstOrDefault(c => c.CA == contractAddress);
+        if (winner != null)
+            winner.RejectionReason = null;
 
         _logger.LogInformation("Selected pair: CA={CA}, MarketCap=${MarketCap:N0}, Liquidity=${Liquidity:N0}, DEX={Dex}, Chain={Chain}",
-            contractAddress, bestMatch.MarketCap, bestMatch.Liquidity?.Usd, bestMatch.DexId, bestMatch.ChainId);
+            contractAddress, bestPair.MarketCap, bestPair.Liquidity?.Usd, bestPair.DexId, bestPair.ChainId);
 
-        return (contractAddress, chain);
+        return (contractAddress, chain, allCandidates);
     }
 
     private Chain? MapChainIdToChain(string? chainId)
@@ -178,36 +198,27 @@ public class DexScreenerService : IDexScreenerService
         return _filterSettings.MarketCapToleranceRanges.LastOrDefault()?.TolerancePercent ?? 100;
     }
 
-    private bool IsValidPair(DexScreenerPair pair, double minMarketCap, double maxMarketCap)
+    private string? GetRejectionReason(DexScreenerPair pair, double minMarketCap, double maxMarketCap)
     {
-        // Must have valid data
         if (pair.BaseToken?.Address == null || pair.MarketCap == null || pair.Liquidity?.Usd == null)
-            return false;
+            return "missing_data";
 
-        // Chain filter (hard filter - must match)
         if (_filterSettings.AllowedChains.Count > 0 &&
             !_filterSettings.AllowedChains.Contains(pair.ChainId ?? "", StringComparer.OrdinalIgnoreCase))
-        {
-            return false;
-        }
+            return $"wrong_chain:{pair.ChainId}";
 
-        // Marketcap within tolerance
         if (pair.MarketCap < minMarketCap || pair.MarketCap > maxMarketCap)
-            return false;
+            return $"mc_out_of_range:{minMarketCap:F0}-{maxMarketCap:F0}";
 
-        // Minimum absolute liquidity
         if (pair.Liquidity.Usd < _filterSettings.MinAbsoluteLiquidityUsd)
-            return false;
+            return $"low_liquidity_abs:{pair.Liquidity.Usd:F0}";
 
-        // Liquidity to marketcap ratio check
         var liqToMcapPercent = (pair.Liquidity.Usd.Value / pair.MarketCap.Value) * 100;
         if (liqToMcapPercent < _filterSettings.MinLiquidityToMarketCapRatioPercent ||
             liqToMcapPercent > _filterSettings.MaxLiquidityToMarketCapRatioPercent)
-        {
-            return false;
-        }
+            return $"liq_ratio:{liqToMcapPercent:F1}%";
 
-        return true;
+        return null;
     }
 
     private double CalculatePairScore(DexScreenerPair pair, double expectedMarketCap)

@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -154,7 +155,10 @@ public class TelegramService : ITelegramService
             TimesDexScreenerApiHit = lookupResult?.TimesDexScreenerApiHit ?? 0,
             TimesHeliusApiHit = lookupResult?.TimesHeliusApiHit ?? 0,
             LookupDuration = lookupResult?.LookupDuration,
-            MarketCapAtNotification = marketCap.HasValue ? (decimal)marketCap.Value : null
+            MarketCapAtNotification = marketCap.HasValue ? (decimal)marketCap.Value : null,
+            LookupDiagnostics = lookupResult?.LookupCandidates != null && lookupResult.LookupCandidates.Count > 0
+                ? JsonSerializer.Serialize(lookupResult.LookupCandidates)
+                : null
         };
         dbContext.Notifications.Add(notificationRecord);
         await dbContext.SaveChangesAsync();

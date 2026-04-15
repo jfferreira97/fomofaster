@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using TelegramBot.Data;
@@ -89,7 +90,10 @@ public class DashboardController : ControllerBase
                         timesHeliusApiHit = n.TimesHeliusApiHit,
                         lookupDuration = n.LookupDuration?.TotalMilliseconds,
                         wasRetried = n.WasRetried,
-                        marketCapAtNotification = n.MarketCapAtNotification
+                        marketCapAtNotification = n.MarketCapAtNotification,
+                        lookupDiagnostics = n.LookupDiagnostics != null
+                            ? JsonSerializer.Deserialize<object>(n.LookupDiagnostics)
+                            : null
                     };
                 })
                 .OrderBy(n => n.sentAt) // Chronological order

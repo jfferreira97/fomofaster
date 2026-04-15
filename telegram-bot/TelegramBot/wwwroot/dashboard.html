@@ -585,6 +585,106 @@
             border-right: 6px solid transparent;
             border-top: 6px solid #2b5278;
         }
+        .lookup-diag {
+            margin-top: 8px;
+            border: 1px solid #2b3f52;
+            border-radius: 6px;
+            font-size: 11px;
+            overflow: hidden;
+        }
+
+        .lookup-diag-header {
+            padding: 5px 8px;
+            background: #1e2d3d;
+            color: #8ba8c0;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .lookup-diag-header:hover {
+            background: #243447;
+        }
+
+        .lookup-diag-body {
+            display: none;
+            padding: 6px 8px;
+            background: #17212b;
+        }
+
+        .lookup-diag.expanded .lookup-diag-body {
+            display: block;
+        }
+
+        .diag-section-label {
+            color: #5a7a94;
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin: 4px 0 2px;
+        }
+
+        .diag-range {
+            border-top: 1px solid #2b3f52;
+            border-bottom: 1px solid #2b3f52;
+            padding: 4px 0;
+            margin: 4px 0;
+            color: #5a7a94;
+            font-size: 10px;
+        }
+
+        .diag-row {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            padding: 2px 0;
+            cursor: pointer;
+            border-radius: 3px;
+        }
+
+        .diag-row:hover {
+            background: #1e2d3d;
+        }
+
+        .diag-row.passed .diag-ca { color: #4db87a; }
+        .diag-row.rejected .diag-ca { color: #8ba8c0; }
+
+        .diag-mc {
+            color: #a0b8cc;
+            min-width: 60px;
+        }
+
+        .diag-reason {
+            color: #e05a5a;
+            font-size: 10px;
+            flex: 1;
+        }
+
+        .diag-actions {
+            margin-left: auto;
+            display: flex;
+            gap: 4px;
+        }
+
+        .diag-btn {
+            background: #1e2d3d;
+            border: 1px solid #2b3f52;
+            color: #8ba8c0;
+            border-radius: 3px;
+            padding: 1px 5px;
+            font-size: 11px;
+            cursor: pointer;
+            line-height: 1.4;
+        }
+
+        .diag-btn:hover {
+            background: #2b3f52;
+            color: #fff;
+        }
+
+        .diag-btn-pin:hover {
+            border-color: #4db87a;
+            color: #4db87a;
+        }
     </style>
 </head>
 <body>
@@ -1000,6 +1100,58 @@
                 `;
             }
 
+            if (!notification.contractAddress && notification.lookupDiagnostics && notification.lookupDiagnostics.length > 0) {
+                const candidates = notification.lookupDiagnostics;
+                const mcAtNoti = notification.marketCapAtNotification;
+                const inside = candidates.filter(c => !c.RejectionReason).sort((a, b) => a.MarketCap - b.MarketCap);
+                const outside = candidates.filter(c => c.RejectionReason).sort((a, b) => a.MarketCap - b.MarketCap);
+
+                let diagHtml = `<div class="lookup-diag">`;
+                diagHtml += `<div class="lookup-diag-header" onclick="this.parentElement.classList.toggle('expanded')">No CA — ${candidates.length} candidate${candidates.length !== 1 ? 's' : ''} from DexScreener ▾</div>`;
+                diagHtml += `<div class="lookup-diag-body">`;
+
+                if (inside.length > 0) {
+                    diagHtml += `<div class="diag-section-label">INSIDE tolerance</div>`;
+                    inside.forEach(c => {
+                        const shortCA = c.CA.slice(0, 6) + '...' + c.CA.slice(-4);
+                        diagHtml += `<div class="diag-row passed">
+                            <span class="diag-ca" title="${c.CA}">${shortCA}</span>
+                            <span class="diag-mc">$${formatMarketCap(c.MarketCap)}</span>
+                            <span class="diag-actions">
+                                <button class="diag-btn" onclick="navigator.clipboard.writeText('${c.CA}')" title="Copy CA">&#x2398;</button>
+                                <button class="diag-btn diag-btn-pin" onclick="applyCAFromDiag(${notification.id}, '${c.CA}')" title="Set as CA">&#x2713;</button>
+                            </span>
+                        </div>`;
+                    });
+                }
+
+                if (mcAtNoti) {
+                    const tol = getToleranceLabel(Number(mcAtNoti));
+                    const minMc = Number(mcAtNoti) / (1 + tol / 100);
+                    const maxMc = Number(mcAtNoti) * (1 + tol / 100);
+                    diagHtml += `<div class="diag-range">Range: $${formatMarketCap(minMc)} – $${formatMarketCap(maxMc)} (±${tol}% of $${formatMarketCap(Number(mcAtNoti))})</div>`;
+                }
+
+                if (outside.length > 0) {
+                    diagHtml += `<div class="diag-section-label">OUTSIDE / rejected</div>`;
+                    outside.forEach(c => {
+                        const shortCA = c.CA.slice(0, 6) + '...' + c.CA.slice(-4);
+                        diagHtml += `<div class="diag-row rejected">
+                            <span class="diag-ca" title="${c.CA}">${shortCA}</span>
+                            <span class="diag-mc">$${formatMarketCap(c.MarketCap)}</span>
+                            <span class="diag-reason">${c.RejectionReason}</span>
+                            <span class="diag-actions">
+                                <button class="diag-btn" onclick="navigator.clipboard.writeText('${c.CA}')" title="Copy CA">&#x2398;</button>
+                                <button class="diag-btn diag-btn-pin" onclick="applyCAFromDiag(${notification.id}, '${c.CA}')" title="Set as CA">&#x2713;</button>
+                            </span>
+                        </div>`;
+                    });
+                }
+
+                diagHtml += `</div></div>`;
+                messageHtml += diagHtml;
+            }
+
             // Format timestamp: show both original and edited times (Telegram fidelity)
             let timestampText = formatTime(notification.sentAt);
             if ((notification.isManuallyEdited || notification.isSystemEdited) && notification.editedAt) {
@@ -1098,6 +1250,15 @@
             }
         }
 
+        async function applyCAFromDiag(notificationId, ca) {
+            const input = document.getElementById(`ca-input-${notificationId}`);
+            const chainSelect = document.getElementById(`chain-select-${notificationId}`);
+            if (input && chainSelect) {
+                input.value = ca;
+            }
+            await submitEditCA(notificationId);
+        }
+
         async function submitEditCA(notificationId) {
             const caInput = document.getElementById(`ca-input-${notificationId}`);
             const chainSelect = document.getElementById(`chain-select-${notificationId}`);
@@ -1174,6 +1335,19 @@
             const hours = String(date.getHours()).padStart(2, '0');
             const minutes = String(date.getMinutes()).padStart(2, '0');
             return `${hours}:${minutes}`;
+        }
+
+        function formatMarketCap(mc) {
+            if (mc >= 1_000_000) return (mc / 1_000_000).toFixed(1) + 'M';
+            if (mc >= 1_000) return Math.round(mc / 1_000) + 'k';
+            return Math.round(mc).toString();
+        }
+
+        function getToleranceLabel(mc) {
+            if (mc < 2_000_000) return 500;
+            if (mc < 10_000_000) return 300;
+            if (mc < 50_000_000) return 200;
+            return 100;
         }
 
         function showRefreshIndicator(count) {
