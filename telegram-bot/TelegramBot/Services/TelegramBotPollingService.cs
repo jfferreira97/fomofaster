@@ -717,6 +717,7 @@ Use /unfollow 1,2,3 or /unfollow trader1,trader2 to unfollow traders.";
                             TotalTrades = g.Count(),
                             BuyCount = g.Count(n => n.Message.Contains("bought")),
                             SellCount = g.Count(n => n.Message.Contains("sold")),
+                            DepositCount = g.Count(n => n.Message.Contains("deposited")),
                             ContractAddress = g.OrderByDescending(n => n.SentAt)
                                 .Select(n => n.ContractAddress)
                                 .FirstOrDefault(ca => ca != null),
@@ -748,7 +749,8 @@ Use /unfollow 1,2,3 or /unfollow trader1,trader2 to unfollow traders.";
                             ? $"\n`{stat.ContractAddress}`"
                             : "";
 
-                        lines.Add($"{medal} *{stat.Ticker}* - {stat.TotalTrades} trades ({stat.BuyCount} 🟢, {stat.SellCount} 🔴){caDisplay}");
+                        var depositPart = stat.DepositCount > 0 ? $", {stat.DepositCount} ➕" : "";
+                        lines.Add($"{medal} *{stat.Ticker}* - {stat.TotalTrades} trades ({stat.BuyCount} 🟢, {stat.SellCount} 🔴{depositPart}){caDisplay}");
                     }
 
                     // Build header with chain filter info

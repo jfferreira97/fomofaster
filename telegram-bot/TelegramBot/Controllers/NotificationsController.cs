@@ -239,7 +239,7 @@ public class NotificationsController : ControllerBase
         // Format: "TICKER at $XXm MC 🟢 @trader bought/sold $XXX"
         // Example: "KLED at $31.2m MC 🟢 @frankdegods bought $9,955.55"
         // Look for @ symbol after "MC" and before "bought" or "sold"
-        var match = Regex.Match(message, @"MC\s+\S+\s+@(\w+)\s+(?:bought|sold)", RegexOptions.IgnoreCase);
+        var match = Regex.Match(message, @"MC\s+\S+\s+@(\w+)\s+(?:bought|sold|deposited)", RegexOptions.IgnoreCase);
         if (match.Success)
         {
             return match.Groups[1].Value; // Returns "frankdegods" without the @

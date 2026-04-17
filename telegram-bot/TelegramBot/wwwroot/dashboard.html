@@ -270,6 +270,10 @@
             color: #f44336;
         }
 
+        .deposit-indicator {
+            color: #f0a500;
+        }
+
         .loading {
             text-align: center;
             padding: 40px;
@@ -1323,9 +1327,10 @@
                     `<a href="https://x.com/${trader}" target="_blank" class="message-trader">@${trader}</a>`);
             }
 
-            // Highlight buy/sell
+            // Highlight buy/sell/deposit
             formatted = formatted.replace(/\bbought\b/gi, '<span class="buy-indicator">bought</span>');
             formatted = formatted.replace(/\bsold\b/gi, '<span class="sell-indicator">sold</span>');
+            formatted = formatted.replace(/\bdeposited\b/gi, '<span class="deposit-indicator">deposited</span>');
 
             return formatted;
         }
