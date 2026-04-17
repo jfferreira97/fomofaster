@@ -55,7 +55,7 @@ public class TelegramService : ITelegramService
         return _botClient != null;
     }
 
-    public async Task SendNotificationToAllUsersAsync(NotificationRequest notification, ContractLookupResult? lookupResult = null, string? traderHandle = null, string? ticker = null, double? marketCap = null)
+    public async Task SendNotificationToAllUsersAsync(NotificationRequest notification, ContractLookupResult? lookupResult = null, string? traderHandle = null, string? ticker = null, double? marketCap = null, NotificationType notificationType = NotificationType.Unknown)
     {
         if (_botClient == null)
         {
@@ -158,7 +158,8 @@ public class TelegramService : ITelegramService
             MarketCapAtNotification = marketCap.HasValue ? (decimal)marketCap.Value : null,
             LookupDiagnostics = lookupResult?.LookupCandidates != null && lookupResult.LookupCandidates.Count > 0
                 ? JsonSerializer.Serialize(lookupResult.LookupCandidates)
-                : null
+                : null,
+            Type = notificationType
         };
         dbContext.Notifications.Add(notificationRecord);
         await dbContext.SaveChangesAsync();
@@ -240,7 +241,8 @@ public class TelegramService : ITelegramService
             successCount, users.Count, failCount);
 
         // If no CA was found, enqueue for retry with marketcap
-        if (!notificationRecord.HasCA)
+        Func<Models.Notification, bool> shouldEnqueueCaRetry = n => !n.HasCA && n.Type != NotificationType.Verified;
+        if (shouldEnqueueCaRetry(notificationRecord))
         {
             await _retryService.EnqueueRetryAsync(notificationRecord.Id, notificationRecord.Ticker, notificationRecord.Trader, marketCap);
         }

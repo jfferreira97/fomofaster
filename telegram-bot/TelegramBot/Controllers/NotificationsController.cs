@@ -97,6 +97,8 @@ public class NotificationsController : ControllerBase
             string? trader = null;
             ContractLookupResult? lookupResult = null;
 
+            var notificationType = ClassifyNotification(noti.Message);
+
             // Check if this is a thesis notification
             if (IsThesisNotification(noti.Message))
             {
@@ -198,7 +200,7 @@ public class NotificationsController : ControllerBase
 
             // Send to users following this trader (or all if no trader extracted)
             // Pass lookupResult which contains tracking data
-            await _telegramService.SendNotificationToAllUsersAsync(noti, lookupResult, trader, ticker, marketCap);
+            await _telegramService.SendNotificationToAllUsersAsync(noti, lookupResult, trader, ticker, marketCap, notificationType);
 
             return Ok(new
             {
@@ -218,6 +220,20 @@ public class NotificationsController : ControllerBase
                 message = "Internal server error"
             });
         }
+    }
+
+    private static NotificationType ClassifyNotification(string message)
+    {
+        if (IsThesisNotification(message))
+            return NotificationType.Thesis;
+
+        if (IsVerifiedNotification(message))
+            return NotificationType.Verified;
+
+        if (message.Contains("bought", StringComparison.OrdinalIgnoreCase)) return NotificationType.Buy;
+        if (message.Contains("sold", StringComparison.OrdinalIgnoreCase)) return NotificationType.Sell;
+        if (message.Contains("deposited", StringComparison.OrdinalIgnoreCase)) return NotificationType.Deposit;
+        return NotificationType.Unknown;
     }
 
     private string? ExtractTicker(string message)
@@ -247,16 +263,34 @@ public class NotificationsController : ControllerBase
         return null;
     }
 
-    private bool IsThesisNotification(string message)
+    private static bool IsThesisNotification(string message)
     {
         // Thesis notifications contain "thesis" but NOT "MC" and NOT "bought" or "sold"
         // Examples:
         // "Blobby thesis by 0xuberM I tailed nosanity I have no idea what's happening"
         // "BANGERS thesis by jotagezin AND I KNOW BANGERS"
-        return message.Contains("thesis", StringComparison.OrdinalIgnoreCase) &&
-               !message.Contains("MC", StringComparison.OrdinalIgnoreCase) &&
-               !message.Contains("bought", StringComparison.OrdinalIgnoreCase) &&
-               !message.Contains("sold", StringComparison.OrdinalIgnoreCase);
+        var hasThesisStr = message.Contains("thesis", StringComparison.OrdinalIgnoreCase);
+
+        var hasMcBoughtSoldDepositedStrs = message.Contains("MC", StringComparison.OrdinalIgnoreCase) &&
+                          (message.Contains("bought", StringComparison.OrdinalIgnoreCase) &&
+                           message.Contains("sold", StringComparison.OrdinalIgnoreCase) &&
+                           message.Contains("deposited", StringComparison.OrdinalIgnoreCase));
+
+        // Can result in false positive if noti is "thesis by {traderHandle} satoshi bought @ 500k MC and sold the bottom AND HE DEPOSITED TOO"
+        // But there's no fucking way
+        return hasThesisStr && !hasMcBoughtSoldDepositedStrs;
+    }
+
+    private static bool IsVerifiedNotification(string message)
+    {
+        var hasVerifiedStr = message.Contains("is now verified on fomo", StringComparison.OrdinalIgnoreCase);
+
+        var hasMcBoughtSoldDepositedStrs = message.Contains("MC", StringComparison.OrdinalIgnoreCase) &&
+                          (message.Contains("bought", StringComparison.OrdinalIgnoreCase) &&
+                           message.Contains("sold", StringComparison.OrdinalIgnoreCase) &&
+                           message.Contains("deposited", StringComparison.OrdinalIgnoreCase));
+
+        return hasVerifiedStr && !hasMcBoughtSoldDepositedStrs;
     }
 
     private string? ExtractThesisTicker(string message)

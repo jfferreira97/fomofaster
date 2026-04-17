@@ -24,4 +24,16 @@ public class Notification
 
     // DexScreener lookup diagnostics (JSON array of LookupCandidate)
     public string? LookupDiagnostics { get; set; }
+
+    public NotificationType Type { get; set; } = NotificationType.Unknown;
+}
+
+public enum NotificationType
+{
+    Buy,
+    Sell,
+    Deposit,
+    Thesis,
+    Verified,
+    Unknown
 }

@@ -74,6 +74,7 @@ public class AppDbContext : DbContext
             entity.Property(e => e.HasCA).IsRequired();
             entity.Property(e => e.ContractAddress).HasMaxLength(100);
             entity.Property(e => e.Chain).HasConversion<string>(); // Store enum as string in SQLite
+            entity.Property(e => e.Type).HasConversion<string>().HasDefaultValue(NotificationType.Unknown);
             entity.Property(e => e.SentAt).IsRequired();
 
             // Index for cleanup queries (delete old notifications)
