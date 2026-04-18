@@ -694,9 +694,13 @@
 <body>
     <div class="container">
         <div class="header">
-            <div>
+            <div style="flex:1">
                 <div class="header-title">FOMOFASTER Alerts</div>
                 <div class="header-subtitle">bot</div>
+            </div>
+            <div style="display:flex;gap:6px;align-items:center;">
+                <input id="notifIdInput" type="number" placeholder="Jump to ID..." style="width:130px;padding:5px 8px;background:#0e1621;border:1px solid #2b5278;border-radius:6px;color:#e8e9ea;font-size:13px;" onkeydown="if(event.key==='Enter')jumpToNotification()">
+                <button onclick="jumpToNotification()" style="padding:5px 12px;background:#2b5278;border:none;border-radius:6px;color:#e8e9ea;font-size:13px;cursor:pointer;">Go</button>
             </div>
         </div>
 
@@ -1104,15 +1108,34 @@
                 `;
             }
 
-            if (!notification.contractAddress && notification.lookupDiagnostics && notification.lookupDiagnostics.length > 0) {
-                const candidates = notification.lookupDiagnostics;
+            if (notification.lookupDiagnostics) {
+                const diag = notification.lookupDiagnostics;
+                const candidates = diag.candidates || [];
                 const mcAtNoti = notification.marketCapAtNotification;
+                const hasCA = !!notification.contractAddress;
                 const inside = candidates.filter(c => !c.RejectionReason).sort((a, b) => a.MarketCap - b.MarketCap);
                 const outside = candidates.filter(c => c.RejectionReason).sort((a, b) => a.MarketCap - b.MarketCap);
 
-                let diagHtml = `<div class="lookup-diag">`;
-                diagHtml += `<div class="lookup-diag-header" onclick="this.parentElement.classList.toggle('expanded')">No CA — ${candidates.length} candidate${candidates.length !== 1 ? 's' : ''} from DexScreener ▾</div>`;
+                const sourceLabel = diag.source || 'Unknown';
+                const headerLabel = hasCA
+                    ? `CA via ${sourceLabel} — ${candidates.length} candidate${candidates.length !== 1 ? 's' : ''} ▾`
+                    : `No CA — ${candidates.length} candidate${candidates.length !== 1 ? 's' : ''} from ${sourceLabel} ▾`;
+
+                let diagHtml = `<div class="lookup-diag${hasCA ? '' : ' expanded'}">`;
+                diagHtml += `<div class="lookup-diag-header" onclick="this.parentElement.classList.toggle('expanded')">${headerLabel}</div>`;
                 diagHtml += `<div class="lookup-diag-body">`;
+
+                if (hasCA && diag.resolvedCA) {
+                    const shortResolved = diag.resolvedCA.slice(0, 6) + '...' + diag.resolvedCA.slice(-4);
+                    diagHtml += `<div class="diag-section-label">RESOLVED</div>`;
+                    diagHtml += `<div class="diag-row passed">
+                        <span class="diag-ca" title="${diag.resolvedCA}">${shortResolved}</span>
+                        <span class="diag-mc">${diag.resolvedChain || ''}</span>
+                        <span class="diag-actions">
+                            <button class="diag-btn" onclick="navigator.clipboard.writeText('${diag.resolvedCA}')" title="Copy CA">&#x2398;</button>
+                        </span>
+                    </div>`;
+                }
 
                 if (inside.length > 0) {
                     diagHtml += `<div class="diag-section-label">INSIDE tolerance</div>`;
@@ -1863,6 +1886,41 @@
                 closeBroadcastModal();
             }
         };
+
+        async function jumpToNotification() {
+            const id = document.getElementById('notifIdInput').value.trim();
+            if (!id) return;
+
+            try {
+                const response = await fetch(`${API_BASE}/api/dashboard/notifications?id=${id}`);
+                const data = await response.json();
+
+                if (data.status === 'success' && data.notifications.length > 0) {
+                    const n = data.notifications[0];
+                    // If already in DOM, just scroll to it
+                    const existing = document.querySelector(`[data-notification-id="${n.id}"]`);
+                    if (existing) {
+                        existing.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        existing.style.outline = '2px solid #5ca8e2';
+                        setTimeout(() => existing.style.outline = '', 2000);
+                        return;
+                    }
+                    // Otherwise inject it
+                    const chatArea = document.getElementById('chatArea');
+                    const msgEl = createMessageElement(n);
+                    msgEl.style.outline = '2px solid #5ca8e2';
+                    chatArea.appendChild(msgEl);
+                    displayedNotificationIds.add(n.id);
+                    msgEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    setTimeout(() => msgEl.style.outline = '', 2000);
+                } else {
+                    alert(`Notification #${id} not found`);
+                }
+            } catch (err) {
+                console.error(err);
+                alert('Failed to fetch notification');
+            }
+        }
 
         // Initialize dashboard: load existing notifications and start SignalR
         (async function init() {

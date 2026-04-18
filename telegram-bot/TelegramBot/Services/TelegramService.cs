@@ -164,8 +164,13 @@ public class TelegramService : ITelegramService
             TimesHeliusApiHit = lookupResult?.TimesHeliusApiHit ?? 0,
             LookupDuration = lookupResult?.LookupDuration,
             MarketCapAtNotification = marketCap.HasValue ? (decimal)marketCap.Value : null,
-            LookupDiagnostics = lookupResult?.LookupCandidates != null && lookupResult.LookupCandidates.Count > 0
-                ? JsonSerializer.Serialize(lookupResult.LookupCandidates)
+            LookupDiagnostics = lookupResult != null
+                ? JsonSerializer.Serialize(new {
+                    source = lookupResult.Source.ToString(),
+                    resolvedCA = lookupResult.ContractAddress,
+                    resolvedChain = lookupResult.Chain?.ToString(),
+                    candidates = lookupResult.LookupCandidates
+                })
                 : null,
             Type = notificationType
         };

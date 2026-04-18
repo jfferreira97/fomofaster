@@ -29,7 +29,7 @@ public class DashboardController : ControllerBase
     }
 
     [HttpGet("notifications")]
-    public async Task<IActionResult> GetRecentNotifications([FromQuery] int limit = 50)
+    public async Task<IActionResult> GetRecentNotifications([FromQuery] int limit = 50, [FromQuery] int? id = null)
     {
         try
         {
@@ -37,10 +37,12 @@ public class DashboardController : ControllerBase
             var totalUsers = await _dbContext.Users.CountAsync(u => u.IsActive);
 
             // Get recent notifications (single query)
-            var recentNotifications = await _dbContext.Notifications
-                .OrderByDescending(n => n.SentAt)
-                .Take(limit)
-                .ToListAsync();
+            var recentNotifications = id.HasValue
+                ? await _dbContext.Notifications.Where(n => n.Id == id.Value).ToListAsync()
+                : await _dbContext.Notifications
+                    .OrderByDescending(n => n.SentAt)
+                    .Take(limit)
+                    .ToListAsync();
 
             var notificationIds = recentNotifications.Select(n => n.Id).ToList();
 
