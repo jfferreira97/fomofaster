@@ -309,10 +309,10 @@ public class NotificationsController : ControllerBase
 
     private string? ExtractThesisTrader(string message)
     {
-        // Format: "TICKER thesis by trader ..."
-        // Example: "Blobby thesis by 0xuberM I tailed nosanity I have no idea what's happening"
-        // Note: No @ symbol before trader name in thesis notifications
-        var match = Regex.Match(message, @"thesis by\s+(\w+)", RegexOptions.IgnoreCase);
+        // Format: "TICKER thesis by [@]trader ..."
+        // Examples: "Blobby thesis by 0xuberM ...", "Shadow thesis by @mystayor ..."
+        // Trader name may or may not have a leading @ — @? handles both cases
+        var match = Regex.Match(message, @"thesis by\s+@?(\w+)", RegexOptions.IgnoreCase);
         if (match.Success)
         {
             return match.Groups[1].Value; // Returns "0xuberM"

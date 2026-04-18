@@ -102,13 +102,21 @@ public class TelegramService : ITelegramService
         var contractAddress = lookupResult?.ContractAddress;
         var chain = lookupResult?.Chain;
 
-        // Replace @traderHandle with Twitter link to avoid Telegram interpreting it as a Telegram user
-        var processedMessage = notification.Message;
+        // Escape Markdown special chars in the raw message before parsing — stray _, *, `, [
+        // characters (including those shifted by invisible unicode) cause Telegram to throw
+        // "Can't find end of entity". Do this first, then inject the intentional link.
+        static string EscapeMarkdown(string text) =>
+            text.Replace("_", "\\_").Replace("*", "\\*").Replace("`", "\\`").Replace("[", "\\[");
+
+        var processedMessage = EscapeMarkdown(notification.Message);
         if (!string.IsNullOrEmpty(traderHandle))
         {
-            processedMessage = processedMessage.Replace(
-                $"@{traderHandle}",
-                $"[{traderHandle}](https://x.com/{traderHandle})"
+            // Case-insensitive replace of @traderHandle with a clickable Twitter link
+            processedMessage = System.Text.RegularExpressions.Regex.Replace(
+                processedMessage,
+                System.Text.RegularExpressions.Regex.Escape($"@{traderHandle}"),
+                $"[{traderHandle}](https://x.com/{traderHandle})",
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase
             );
         }
 
