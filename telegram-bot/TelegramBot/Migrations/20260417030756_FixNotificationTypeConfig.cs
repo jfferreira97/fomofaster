@@ -10,12 +10,7 @@ namespace TelegramBot.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.AddColumn<string>(
-                name: "Type",
-                table: "Notifications",
-                type: "TEXT",
-                nullable: false,
-                defaultValue: "Unknown");
+            // Type column already added by AddNotificationType migration
         }
 
         /// <inheritdoc />
