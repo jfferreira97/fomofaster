@@ -767,6 +767,68 @@ Use /unfollow 1,2,3 or /unfollow trader1,trader2 to unfollow traders.";
                 }
                 break;
 
+            case "/subscribe":
+                using (var subscribeScope = _serviceProvider.CreateScope())
+                {
+                    var dbContext = subscribeScope.ServiceProvider.GetRequiredService<AppDbContext>();
+                    var subscribeUser = await userService.GetUserByChatIdAsync(chatId);
+
+                    if (subscribeUser == null) break;
+
+                    // Already active RN
+                    if (subscribeUser.IsRN4L || (subscribeUser.IsRegisteredNurse && subscribeUser.RNExpiresAt > DateTime.UtcNow))
+                    {
+                        var until = subscribeUser.IsRN4L ? "forever" : subscribeUser.RNExpiresAt!.Value.ToString("yyyy-MM-dd HH:mm UTC");
+                        await _botClient.SendTextMessageAsync(
+                            chatId: chatId,
+                            text: $"✅ You already have full access ({until}).",
+                            parseMode: ParseMode.Markdown
+                        );
+                        break;
+                    }
+
+                    // Check for existing unexpired unconfirmed payment
+                    var existing = await dbContext.PendingPayments
+                        .Where(p => p.ChatId == chatId && !p.IsConfirmed && p.ExpiresAt > DateTime.UtcNow)
+                        .OrderByDescending(p => p.CreatedAt)
+                        .FirstOrDefaultAsync();
+
+                    if (existing != null)
+                    {
+                        var remaining = (int)(existing.ExpiresAt - DateTime.UtcNow).TotalMinutes;
+                        await _botClient.SendTextMessageAsync(
+                            chatId: chatId,
+                            text: $"💳 You have a pending payment \\(expires in {remaining} min\\)\\. Send exactly *0\\.2 SOL* to:\n\n`{existing.WalletPublicKey}`\n\nAccess is granted automatically within seconds of payment\\.",
+                            parseMode: ParseMode.MarkdownV2
+                        );
+                        break;
+                    }
+
+                    // Generate new Solana keypair
+                    var keypair = GenerateSolanaKeypair();
+
+                    var pending = new PendingPayment
+                    {
+                        ChatId = chatId,
+                        WalletPublicKey = keypair.PublicKey,
+                        WalletPrivateKey = keypair.PrivateKey,
+                        AmountSol = 0.2m,
+                        CreatedAt = DateTime.UtcNow,
+                        ExpiresAt = DateTime.UtcNow.AddHours(1),
+                        IsConfirmed = false
+                    };
+
+                    dbContext.PendingPayments.Add(pending);
+                    await dbContext.SaveChangesAsync();
+
+                    await _botClient.SendTextMessageAsync(
+                        chatId: chatId,
+                        text: $"💳 Send exactly *0\\.2 SOL* to:\n\n`{keypair.PublicKey}`\n\nAccess is granted automatically within seconds of payment\\.\nThis address expires in *1 hour*\\.",
+                        parseMode: ParseMode.MarkdownV2
+                    );
+                }
+                break;
+
             default:
                 await _botClient.SendTextMessageAsync(
                     chatId: chatId,
@@ -775,5 +837,18 @@ Use /unfollow 1,2,3 or /unfollow trader1,trader2 to unfollow traders.";
                 );
                 break;
         }
+    }
+
+    private static (string PublicKey, string PrivateKey) GenerateSolanaKeypair()
+    {
+        var wallet = new Solnet.Wallet.Wallet(
+            Solnet.Wallet.Bip39.WordCount.TwentyFour,
+            Solnet.Wallet.Bip39.WordList.English
+        );
+        var account = wallet.Account;
+        return (
+            PublicKey: account.PublicKey.Key,
+            PrivateKey: Convert.ToBase64String(account.PrivateKey.KeyBytes)
+        );
     }
 }

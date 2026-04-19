@@ -120,10 +120,11 @@ public class TelegramService : ITelegramService
             );
         }
 
-        string message;
+        string fullMessage;
+        string obfuscatedMessage;
+
         if (!string.IsNullOrEmpty(contractAddress))
         {
-            // Get chain-specific DEXScreener URL (defaults to Solana if no chain specified)
             string dexScreenerUrl = (chain ?? Chain.SOL) switch
             {
                 Chain.SOL => $"https://dexscreener.com/solana/{contractAddress}",
@@ -133,15 +134,28 @@ public class TelegramService : ITelegramService
                 _ => $"https://dexscreener.com/solana/{contractAddress}"
             };
 
-            message = $@"{processedMessage}
+            fullMessage = $@"{processedMessage}
 
 📝 Contract: `{contractAddress}`
 🔗 [DEXScreener]({dexScreenerUrl})";
+
+            var redactedCa = contractAddress.Length > 4
+                ? contractAddress[..2] + "\\.\\.\\." + contractAddress[^2..]
+                : contractAddress;
+            obfuscatedMessage = $@"{BuildObfuscatedText(notification.Message, traderHandle, ticker, marketCap)}
+To get full details: /subscribe
+
+📝 Contract: `{redactedCa}`";
         }
         else
         {
-            message = $@"{processedMessage}";
+            fullMessage = processedMessage;
+            obfuscatedMessage = $@"{BuildObfuscatedText(notification.Message, traderHandle, ticker, marketCap)}
+To get full details: /subscribe";
         }
+
+        static bool IsRNActive(Models.User u) =>
+            u.IsRN4L || (u.IsRegisteredNurse && u.RNExpiresAt > DateTime.UtcNow);
 
         int successCount = 0;
         int failCount = 0;
@@ -182,9 +196,10 @@ public class TelegramService : ITelegramService
         {
             try
             {
+                var userMessage = IsRNActive(user) ? fullMessage : obfuscatedMessage;
                 var sentMessage = await _botClient.SendTextMessageAsync(
                     chatId: user.ChatId,
-                    text: message,
+                    text: userMessage,
                     parseMode: ParseMode.Markdown,
                     disableWebPagePreview: true
                 );
@@ -459,5 +474,39 @@ public class TelegramService : ITelegramService
             _logger.LogError(ex, "Failed to send plain message to chat {ChatId}", chatId);
             return false;
         }
+    }
+
+    private static string BuildObfuscatedText(string rawMessage, string? traderHandle, string? ticker, double? marketCap)
+    {
+        // Replace ticker with "coin", amount patterns with "a certain amount", keep MC for FOMO
+        var text = rawMessage;
+
+        // Strip @handle Twitter links — just keep trader name as plain text
+        if (!string.IsNullOrEmpty(traderHandle))
+            text = System.Text.RegularExpressions.Regex.Replace(
+                text,
+                System.Text.RegularExpressions.Regex.Escape($"@{traderHandle}"),
+                traderHandle,
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+        // Replace ticker symbol with "coin"
+        if (!string.IsNullOrEmpty(ticker))
+            text = System.Text.RegularExpressions.Regex.Replace(
+                text,
+                System.Text.RegularExpressions.Regex.Escape(ticker),
+                "coin",
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+        // Replace dollar amounts (e.g. $4,903.85 or $4.9k) with "a certain amount"
+        text = System.Text.RegularExpressions.Regex.Replace(
+            text,
+            @"\$[\d,]+(?:\.\d+)?(?:k|m|b)?",
+            "a certain amount",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+        // Escape remaining markdown special chars
+        text = text.Replace("_", "\\_").Replace("*", "\\*").Replace("`", "\\`").Replace("[", "\\[");
+
+        return text;
     }
 }

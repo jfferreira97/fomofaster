@@ -71,4 +71,35 @@ public class UserService : IUserService
             _logger.LogInformation("User deactivated: ChatId={ChatId}", chatId);
         }
     }
+
+    public async Task GrantRegisteredNurseAsync(long chatId, DateTime expiresAt)
+    {
+        var user = await GetUserByChatIdAsync(chatId);
+        if (user != null)
+        {
+            user.IsRegisteredNurse = true;
+            user.RNExpiresAt = expiresAt;
+            await _dbContext.SaveChangesAsync();
+            _logger.LogInformation("RN access granted: ChatId={ChatId}, ExpiresAt={ExpiresAt}", chatId, expiresAt);
+        }
+    }
+
+    public async Task RevokeExpiredSubscriptionsAsync()
+    {
+        var expired = await _dbContext.Users
+            .Where(u => u.IsRegisteredNurse && !u.IsRN4L && u.RNExpiresAt < DateTime.UtcNow)
+            .ToListAsync();
+
+        foreach (var user in expired)
+        {
+            user.IsRegisteredNurse = false;
+            user.RNExpiresAt = null;
+        }
+
+        if (expired.Count > 0)
+        {
+            await _dbContext.SaveChangesAsync();
+            _logger.LogInformation("Revoked {Count} expired RN subscriptions", expired.Count);
+        }
+    }
 }

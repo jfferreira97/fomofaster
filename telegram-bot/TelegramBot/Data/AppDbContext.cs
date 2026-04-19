@@ -16,6 +16,7 @@ public class AppDbContext : DbContext
     public DbSet<SentMessage> SentMessages { get; set; }
     public DbSet<KnownToken> KnownTokens { get; set; }
     public DbSet<CachedTokenAddress> CachedTokenAddresses { get; set; }
+    public DbSet<PendingPayment> PendingPayments { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -123,6 +124,20 @@ public class AppDbContext : DbContext
             entity.Property(e => e.ContractAddress).IsRequired().HasMaxLength(100);
             entity.Property(e => e.LastAccessed).IsRequired();
             entity.Property(e => e.ExpiresAt).IsRequired();
+        });
+
+        modelBuilder.Entity<PendingPayment>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.HasIndex(e => e.WalletPublicKey);
+            entity.HasIndex(e => new { e.IsConfirmed, e.ExpiresAt });
+            entity.Property(e => e.ChatId).IsRequired();
+            entity.Property(e => e.WalletPublicKey).IsRequired().HasMaxLength(100);
+            entity.Property(e => e.WalletPrivateKey).IsRequired().HasMaxLength(200);
+            entity.Property(e => e.AmountSol).IsRequired();
+            entity.Property(e => e.CreatedAt).IsRequired();
+            entity.Property(e => e.ExpiresAt).IsRequired();
+            entity.Property(e => e.IsConfirmed).IsRequired();
         });
     }
 }
