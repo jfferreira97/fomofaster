@@ -111,11 +111,11 @@ public class TelegramService : ITelegramService
         var processedMessage = EscapeMarkdown(notification.Message);
         if (!string.IsNullOrEmpty(traderHandle))
         {
-            // Case-insensitive replace of @traderHandle with a clickable Twitter link
+            // Strip @handle — plain name only, no Twitter link
             processedMessage = System.Text.RegularExpressions.Regex.Replace(
                 processedMessage,
                 System.Text.RegularExpressions.Regex.Escape($"@{traderHandle}"),
-                $"[{traderHandle}](https://x.com/{traderHandle})",
+                traderHandle,
                 System.Text.RegularExpressions.RegexOptions.IgnoreCase
             );
         }
@@ -478,10 +478,9 @@ To get full details: /subscribe";
 
     private static string BuildObfuscatedText(string rawMessage, string? traderHandle, string? ticker, double? marketCap)
     {
-        // Replace ticker with "coin", amount patterns with "a certain amount", keep MC for FOMO
         var text = rawMessage;
 
-        // Strip @handle Twitter links — just keep trader name as plain text
+        // Strip @handle — plain name only
         if (!string.IsNullOrEmpty(traderHandle))
             text = System.Text.RegularExpressions.Regex.Replace(
                 text,
@@ -497,14 +496,9 @@ To get full details: /subscribe";
                 "coin",
                 System.Text.RegularExpressions.RegexOptions.IgnoreCase);
 
-        // Replace dollar amounts (e.g. $4,903.85 or $4.9k) with "a certain amount"
-        text = System.Text.RegularExpressions.Regex.Replace(
-            text,
-            @"\$[\d,]+(?:\.\d+)?(?:k|m|b)?",
-            "a certain amount",
-            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        // Dollar amounts stay visible — only the ticker is hidden
 
-        // Escape remaining markdown special chars
+        // Escape markdown special chars
         text = text.Replace("_", "\\_").Replace("*", "\\*").Replace("`", "\\`").Replace("[", "\\[");
 
         return text;
