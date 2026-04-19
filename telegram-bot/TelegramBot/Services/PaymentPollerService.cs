@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using System.Collections.Concurrent;
 using System.Text.Json;
 using TelegramBot.Data;
 
@@ -13,6 +14,9 @@ public class PaymentPollerService : BackgroundService
 
     private const string SolanaRpcUrl = "https://api.mainnet-beta.solana.com";
     private const long RequiredLamports = 200_000_000; // 0.2 SOL
+
+    // chatId → wallet public key for active pending payments (refreshed each poll cycle)
+    public ConcurrentDictionary<long, string> PendingWalletCache { get; } = new();
 
     public PaymentPollerService(
         IServiceProvider serviceProvider,
@@ -54,6 +58,11 @@ public class PaymentPollerService : BackgroundService
         var pending = await dbContext.PendingPayments
             .Where(p => !p.IsConfirmed && p.ExpiresAt > DateTime.UtcNow)
             .ToListAsync();
+
+        // Refresh in-memory cache so TelegramService can read it without DB hits
+        PendingWalletCache.Clear();
+        foreach (var p in pending)
+            PendingWalletCache[p.ChatId] = p.WalletPublicKey;
 
         if (pending.Count == 0) return;
 

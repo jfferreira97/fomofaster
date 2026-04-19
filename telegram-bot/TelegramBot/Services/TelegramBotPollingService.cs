@@ -795,10 +795,13 @@ Use /unfollow 1,2,3 or /unfollow trader1,trader2 to unfollow traders.";
 
                     if (existing != null)
                     {
-                        var remaining = (int)(existing.ExpiresAt - DateTime.UtcNow).TotalMinutes;
+                        var timeLeft = existing.ExpiresAt - DateTime.UtcNow;
+                        var expiryDisplay = timeLeft.TotalMinutes >= 60
+                            ? $"{(int)timeLeft.TotalHours}h {timeLeft.Minutes}m"
+                            : $"{(int)timeLeft.TotalMinutes}m";
                         await _botClient.SendTextMessageAsync(
                             chatId: chatId,
-                            text: $"💳 You have a pending payment \\(expires in {remaining} min\\)\\. Send exactly *0\\.2 SOL* to:\n\n`{existing.WalletPublicKey}`\n\nAccess is granted automatically within seconds of payment\\.",
+                            text: $"💳 You have a pending payment \\(expires in {expiryDisplay}\\)\\. Send 0\\.2 SOL to:\n\n`{existing.WalletPublicKey}`\n\nGrants 30 days of full access, automatically within seconds of payment\\.\nRefundable within the first 3 days — just message us\\.",
                             parseMode: ParseMode.MarkdownV2
                         );
                         break;
@@ -823,7 +826,7 @@ Use /unfollow 1,2,3 or /unfollow trader1,trader2 to unfollow traders.";
 
                     await _botClient.SendTextMessageAsync(
                         chatId: chatId,
-                        text: $"💳 Send exactly *0\\.2 SOL* to:\n\n`{keypair.PublicKey}`\n\nAccess is granted automatically within seconds of payment\\.\nThis address expires in *1 hour*\\.",
+                        text: $"💳 Send 0\\.2 SOL to:\n\n`{keypair.PublicKey}`\n\nGrants 30 days of full access, automatically within seconds of payment\\.\nRefundable within the first 7 days\\.\nThis address expires in 1 hour\\.",
                         parseMode: ParseMode.MarkdownV2
                     );
                 }

@@ -205,6 +205,140 @@ public class DashboardController : ControllerBase
             });
         }
     }
+
+    [HttpGet("payments")]
+    public async Task<IActionResult> GetPayments()
+    {
+        try
+        {
+            var users = await _dbContext.Users.ToListAsync();
+            var payments = await _dbContext.PendingPayments.ToListAsync();
+
+            var now = DateTime.UtcNow;
+
+            var rows = users
+                .Where(u => payments.Any(p => p.ChatId == u.ChatId) || u.IsRegisteredNurse || u.IsRN4L)
+                .Select(u =>
+                {
+                    var userPayments = payments.Where(p => p.ChatId == u.ChatId).ToList();
+                    var latestPending = userPayments
+                        .Where(p => !p.IsConfirmed && p.ExpiresAt > now)
+                        .OrderByDescending(p => p.CreatedAt)
+                        .FirstOrDefault();
+                    var latestExpiredRequest = userPayments
+                        .Where(p => !p.IsConfirmed && p.ExpiresAt <= now)
+                        .OrderByDescending(p => p.ExpiresAt)
+                        .FirstOrDefault();
+                    var confirmed = userPayments.FirstOrDefault(p => p.IsConfirmed);
+
+                    string status;
+                    if (latestPending != null)
+                        status = "pending";
+                    else if (u.IsRN4L || u.IsRegisteredNurse)
+                        status = "active";
+                    else if (confirmed != null)
+                        status = "expired_sub";
+                    else if (latestExpiredRequest != null)
+                        status = "expired_request";
+                    else if (!u.IsActive && userPayments.Any())
+                        status = "blocked";
+                    else
+                        status = "expired_request";
+
+                    var relevantPayment = latestPending ?? confirmed ?? latestExpiredRequest;
+
+                    return new
+                    {
+                        chatId = u.ChatId,
+                        username = u.Username,
+                        firstName = u.FirstName,
+                        isRN4L = u.IsRN4L,
+                        isRegisteredNurse = u.IsRegisteredNurse,
+                        rnExpiresAt = u.RNExpiresAt,
+                        isActive = u.IsActive,
+                        status,
+                        wallet = relevantPayment?.WalletPublicKey,
+                        paymentDate = confirmed?.CreatedAt,
+                        expiresAt = latestPending?.ExpiresAt
+                    };
+                })
+                .ToList();
+
+            return Ok(new { status = "success", payments = rows });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error fetching payments");
+            return StatusCode(500, new { status = "error", message = "Failed to fetch payments" });
+        }
+    }
+
+    [HttpPost("payments/grant")]
+    public async Task<IActionResult> GrantAccess([FromBody] GrantAccessRequest request)
+    {
+        try
+        {
+            var user = await _dbContext.Users.FirstOrDefaultAsync(u => u.ChatId == request.ChatId);
+            if (user == null)
+                return NotFound(new { status = "error", message = "User not found" });
+
+            if (request.IsRN4L)
+            {
+                user.IsRN4L = true;
+                user.IsRegisteredNurse = true;
+                user.RNExpiresAt = null;
+            }
+            else
+            {
+                user.IsRegisteredNurse = true;
+                user.RNExpiresAt = DateTime.UtcNow.AddDays(30);
+            }
+
+            await _dbContext.SaveChangesAsync();
+
+            var msg = request.IsRN4L
+                ? "✅ You've been granted lifetime access to FomoFaster. Welcome to the club."
+                : $"✅ You've been granted 30 days of full access (until {user.RNExpiresAt:yyyy-MM-dd}). Enjoy.";
+
+            await _telegramService.SendPlainMessageAsync(request.ChatId, msg);
+
+            _logger.LogInformation("Manually granted {Type} to ChatId={ChatId}", request.IsRN4L ? "RN4L" : "RN30d", request.ChatId);
+            return Ok(new { status = "success" });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error granting access");
+            return StatusCode(500, new { status = "error", message = "Failed to grant access" });
+        }
+    }
+
+    [HttpPost("payments/revoke")]
+    public async Task<IActionResult> RevokeAccess([FromBody] RevokeAccessRequest request)
+    {
+        try
+        {
+            var user = await _dbContext.Users.FirstOrDefaultAsync(u => u.ChatId == request.ChatId);
+            if (user == null)
+                return NotFound(new { status = "error", message = "User not found" });
+
+            user.IsRegisteredNurse = false;
+            user.IsRN4L = false;
+            user.RNExpiresAt = null;
+
+            await _dbContext.SaveChangesAsync();
+            await _telegramService.SendPlainMessageAsync(request.ChatId, "Your FomoFaster access has been revoked. Use /subscribe to resubscribe.");
+
+            _logger.LogInformation("Manually revoked access for ChatId={ChatId}", request.ChatId);
+            return Ok(new { status = "success" });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error revoking access");
+            return StatusCode(500, new { status = "error", message = "Failed to revoke access" });
+        }
+    }
 }
 
 public record EditCARequest(string ContractAddress, string Chain);
+public record GrantAccessRequest(long ChatId, bool IsRN4L);
+public record RevokeAccessRequest(long ChatId);

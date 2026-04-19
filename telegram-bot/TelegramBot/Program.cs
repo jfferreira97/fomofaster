@@ -50,7 +50,8 @@ builder.Services.AddSingleton<IDexScreenerService, DexScreenerService>();
 builder.Services.AddSingleton<ContractAddressRetryService>();
 builder.Services.AddHostedService<TelegramBotPollingService>(); // Background polling service
 builder.Services.AddHostedService(provider => provider.GetRequiredService<ContractAddressRetryService>()); // CA retry service
-builder.Services.AddHostedService<PaymentPollerService>(); // Solana payment polling + subscription expiry
+builder.Services.AddSingleton<PaymentPollerService>();
+builder.Services.AddHostedService(provider => provider.GetRequiredService<PaymentPollerService>()); // Solana payment polling + subscription expiry
 builder.Services.AddHttpClient(); // For Helius API calls and DexScreener API calls
 
 // Configure settings from appsettings.json or environment variables

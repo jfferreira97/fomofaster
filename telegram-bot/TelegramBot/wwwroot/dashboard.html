@@ -708,6 +708,7 @@
         <div class="tabs">
             <div class="tab active" onclick="switchTab('notifications')">Notifications</div>
             <div class="tab" onclick="switchTab('users')">Users</div>
+            <div class="tab" onclick="switchTab('payments')">Payments</div>
             <div class="tab" onclick="switchTab('settings')">Settings</div>
         </div>
 
@@ -752,6 +753,43 @@
                             </thead>
                             <tbody id="usersTableBody">
                                 <tr><td colspan="8" style="text-align: center; color: #8a96a0;">Loading...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Payments Tab -->
+        <div id="payments-tab" class="tab-content">
+            <div class="chat-area" style="overflow-y: auto;">
+                <div class="settings-container">
+                    <div class="settings-section">
+                        <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">
+                            <div class="settings-section-title" style="margin-bottom:0;">Payment Records</div>
+                            <select id="paymentsFilter" onchange="renderPaymentsTable()" style="padding:6px 10px;background:#0e1621;border:1px solid #2b5278;border-radius:6px;color:#e8e9ea;font-size:13px;">
+                                <option value="all">All</option>
+                                <option value="pending">Pending</option>
+                                <option value="active">Active</option>
+                                <option value="expired_request">Expired Request</option>
+                                <option value="expired_sub">Expired Sub</option>
+                                <option value="blocked">Blocked</option>
+                            </select>
+                            <button onclick="loadPayments()" class="btn btn-secondary" style="padding:6px 12px;font-size:13px;">Refresh</button>
+                        </div>
+                        <table id="paymentsTable">
+                            <thead>
+                                <tr>
+                                    <th>User</th>
+                                    <th>Status</th>
+                                    <th>Wallet</th>
+                                    <th>Payment Date</th>
+                                    <th>Expires</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="paymentsTableBody">
+                                <tr><td colspan="6" style="text-align:center;color:#8a96a0;">Loading...</td></tr>
                             </tbody>
                         </table>
                     </div>
@@ -1404,6 +1442,8 @@
                 loadKnownTokens();
             } else if (tabName === 'users') {
                 loadUsers();
+            } else if (tabName === 'payments') {
+                loadPayments();
             }
         }
 
@@ -1921,6 +1961,97 @@
                 alert('Failed to fetch notification');
             }
         }
+
+        // Payments tab
+        let paymentsData = [];
+
+        async function loadPayments() {
+            try {
+                const res = await fetch('/api/dashboard/payments');
+                const data = await res.json();
+                paymentsData = data.payments || [];
+                renderPaymentsTable();
+            } catch (err) {
+                console.error('Failed to load payments', err);
+            }
+        }
+
+        function renderPaymentsTable() {
+            const filter = document.getElementById('paymentsFilter').value;
+            const tbody = document.getElementById('paymentsTableBody');
+            const rows = filter === 'all' ? paymentsData : paymentsData.filter(p => p.status === filter);
+
+            if (rows.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:#8a96a0;">No records</td></tr>';
+                return;
+            }
+
+            const statusBadge = s => {
+                const map = {
+                    active: '<span style="background:#1a4a1a;color:#4db87a;padding:2px 8px;border-radius:10px;font-size:12px;">🟢 active</span>',
+                    pending: '<span style="background:#3d3010;color:#f0c040;padding:2px 8px;border-radius:10px;font-size:12px;">🟡 pending</span>',
+                    expired_request: '<span style="background:#4a1010;color:#e05a5a;padding:2px 8px;border-radius:10px;font-size:12px;">🔴 expired request</span>',
+                    expired_sub: '<span style="background:#4a1010;color:#e05a5a;padding:2px 8px;border-radius:10px;font-size:12px;">🔴 expired sub</span>',
+                    blocked: '<span style="background:#252525;color:#8a96a0;padding:2px 8px;border-radius:10px;font-size:12px;">⛔ blocked</span>',
+                };
+                return map[s] || s;
+            };
+
+            const fmt = d => d ? new Date(d).toISOString().slice(0, 16).replace('T', ' ') : '—';
+            const shortWallet = w => w ? w.slice(0, 6) + '...' + w.slice(-4) : '—';
+
+            tbody.innerHTML = rows.map(p => {
+                const user = p.username ? `@${p.username}` : p.firstName || p.chatId;
+                return `<tr>
+                    <td title="${p.chatId}">${user}</td>
+                    <td>${statusBadge(p.status)}</td>
+                    <td title="${p.wallet || ''}" style="font-family:monospace;font-size:12px;">${shortWallet(p.wallet)}</td>
+                    <td>${fmt(p.paymentDate)}</td>
+                    <td>${p.rnExpiresAt ? fmt(p.rnExpiresAt) : (p.expiresAt ? fmt(p.expiresAt) : '—')}</td>
+                    <td>
+                        <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                            <button onclick="grantAccess(${p.chatId},false)" class="btn btn-secondary" style="padding:4px 8px;font-size:12px;">Grant RN (30d)</button>
+                            <button onclick="grantAccess(${p.chatId},true)" class="btn btn-primary" style="padding:4px 8px;font-size:12px;">Grant RN4L</button>
+                            <button onclick="revokeAccess(${p.chatId})" class="btn btn-danger" style="padding:4px 8px;font-size:12px;">Revoke</button>
+                        </div>
+                    </td>
+                </tr>`;
+            }).join('');
+        }
+
+        async function grantAccess(chatId, isRN4L) {
+            if (!confirm(`Grant ${isRN4L ? 'lifetime (RN4L)' : '30-day RN'} access to ${chatId}?`)) return;
+            try {
+                const res = await fetch('/api/dashboard/payments/grant', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ chatId, isRN4L })
+                });
+                if (res.ok) { await loadPayments(); }
+                else { alert('Failed to grant access'); }
+            } catch (err) { alert('Error: ' + err.message); }
+        }
+
+        async function revokeAccess(chatId) {
+            if (!confirm(`Revoke access for ${chatId}?`)) return;
+            try {
+                const res = await fetch('/api/dashboard/payments/revoke', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ chatId })
+                });
+                if (res.ok) { await loadPayments(); }
+                else { alert('Failed to revoke access'); }
+            } catch (err) { alert('Error: ' + err.message); }
+        }
+
+        // Auto-refresh payments every 30s when tab is active
+        setInterval(() => {
+            const paymentsTab = document.getElementById('payments-tab');
+            if (paymentsTab && paymentsTab.classList.contains('active')) {
+                loadPayments();
+            }
+        }, 30000);
 
         // Initialize dashboard: load existing notifications and start SignalR
         (async function init() {

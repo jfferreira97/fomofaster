@@ -18,6 +18,7 @@ public class TelegramService : ITelegramService
     private readonly ILogger<TelegramService> _logger;
     private readonly IHubContext<DashboardHub> _hubContext;
     private readonly ContractAddressRetryService _retryService;
+    private PaymentPollerService? _paymentPoller;
 
     public TelegramService(
         IOptions<TelegramSettings> settings,
@@ -157,6 +158,8 @@ To get full details: /subscribe";
         static bool IsRNActive(Models.User u) =>
             u.IsRN4L || (u.IsRegisteredNurse && u.RNExpiresAt > DateTime.UtcNow);
 
+        _paymentPoller ??= _serviceProvider.GetService<PaymentPollerService>();
+
         int successCount = 0;
         int failCount = 0;
 
@@ -196,7 +199,18 @@ To get full details: /subscribe";
         {
             try
             {
-                var userMessage = IsRNActive(user) ? fullMessage : obfuscatedMessage;
+                string userMessage;
+                if (IsRNActive(user))
+                {
+                    userMessage = fullMessage;
+                }
+                else
+                {
+                    var pendingWallet = _paymentPoller?.PendingWalletCache.GetValueOrDefault(user.ChatId);
+                    userMessage = pendingWallet != null
+                        ? obfuscatedMessage + $"\n\nYour pending payment wallet:\n`{pendingWallet}`"
+                        : obfuscatedMessage;
+                }
                 var sentMessage = await _botClient.SendTextMessageAsync(
                     chatId: user.ChatId,
                     text: userMessage,
