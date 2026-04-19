@@ -1,9 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "Bash(if exist telegram-bot rmdir /s /q telegram-bot)"
-    ],
-    "deny": [],
-    "ask": []
-  }
-}

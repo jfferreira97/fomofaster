@@ -34,3 +34,6 @@ local.properties
 *.userosscache
 *.sln.docstates
 nul
+
+# Claude/MCPS
+.claude
