@@ -194,6 +194,12 @@ To get full details: /subscribe";
         dbContext.Notifications.Add(notificationRecord);
         await dbContext.SaveChangesAsync();
 
+        // RN4L first, then active RN, then free users
+        users = users
+            .OrderByDescending(u => u.IsRN4L)
+            .ThenByDescending(u => IsRNActive(u))
+            .ToList();
+
         // Send messages and track MessageIds
         foreach (var user in users)
         {
@@ -218,7 +224,6 @@ To get full details: /subscribe";
                     disableWebPagePreview: true
                 );
 
-                // Save SentMessage record
                 var sentMessageRecord = new Models.SentMessage
                 {
                     NotificationId = notificationRecord.Id,
@@ -235,7 +240,6 @@ To get full details: /subscribe";
             }
             catch (Telegram.Bot.Exceptions.ApiRequestException apiEx) when (apiEx.Message.Contains("bot was blocked by the user") || apiEx.Message.Contains("user is deactivated") || apiEx.Message.Contains("chat not found"))
             {
-                // User blocked the bot or deleted their account - deactivate them
                 _logger.LogWarning("User {ChatId} blocked the bot or is unavailable, deactivating user", user.ChatId);
                 await userService.DeactivateUserAsync(user.ChatId);
                 failCount++;
