@@ -140,7 +140,7 @@ public class TelegramService : ITelegramService
 🔗 [DEXScreener]({dexScreenerUrl})";
 
             var redactedCa = contractAddress.Length > 4
-                ? contractAddress[..2] + "\\.\\.\\." + contractAddress[^2..]
+                ? contractAddress[..2] + new string('*', contractAddress.Length - 4) + contractAddress[^2..]
                 : contractAddress;
             obfuscatedMessage = $@"{BuildObfuscatedText(notification.Message, traderHandle, ticker, marketCap)}
 To get full details: /subscribe
