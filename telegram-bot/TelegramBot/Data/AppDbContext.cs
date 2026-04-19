@@ -17,6 +17,7 @@ public class AppDbContext : DbContext
     public DbSet<KnownToken> KnownTokens { get; set; }
     public DbSet<CachedTokenAddress> CachedTokenAddresses { get; set; }
     public DbSet<PendingPayment> PendingPayments { get; set; }
+    public DbSet<AppConfig> AppConfigs { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -124,6 +125,15 @@ public class AppDbContext : DbContext
             entity.Property(e => e.ContractAddress).IsRequired().HasMaxLength(100);
             entity.Property(e => e.LastAccessed).IsRequired();
             entity.Property(e => e.ExpiresAt).IsRequired();
+        });
+
+        modelBuilder.Entity<AppConfig>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.HasIndex(e => e.Key).IsUnique();
+            entity.Property(e => e.Key).IsRequired().HasMaxLength(100);
+            entity.Property(e => e.Value).IsRequired();
+            entity.Property(e => e.UpdatedAt).IsRequired();
         });
 
         modelBuilder.Entity<PendingPayment>(entity =>

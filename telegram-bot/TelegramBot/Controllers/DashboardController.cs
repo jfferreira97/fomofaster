@@ -15,17 +15,20 @@ public class DashboardController : ControllerBase
     private readonly ILogger<DashboardController> _logger;
     private readonly ITelegramService _telegramService;
     private readonly ISolanaService _solanaService;
+    private readonly AppConfigService _appConfig;
 
     public DashboardController(
         AppDbContext dbContext,
         ILogger<DashboardController> logger,
         ITelegramService telegramService,
-        ISolanaService solanaService)
+        ISolanaService solanaService,
+        AppConfigService appConfig)
     {
         _dbContext = dbContext;
         _logger = logger;
         _telegramService = telegramService;
         _solanaService = solanaService;
+        _appConfig = appConfig;
     }
 
     [HttpGet("notifications")]
@@ -338,8 +341,106 @@ public class DashboardController : ControllerBase
             return StatusCode(500, new { status = "error", message = "Failed to revoke access" });
         }
     }
+
+    [HttpGet("config")]
+    public async Task<IActionResult> GetConfig()
+    {
+        var configs = await _appConfig.GetAllAsync();
+        return Ok(new { status = "success", configs });
+    }
+
+    [HttpPost("config")]
+    public async Task<IActionResult> SetConfig([FromBody] SetConfigRequest request)
+    {
+        try
+        {
+            await _appConfig.SetAsync(request.Key, request.Value, request.Description);
+            return Ok(new { status = "success" });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error setting config {Key}", request.Key);
+            return StatusCode(500, new { status = "error", message = "Failed to save config" });
+        }
+    }
+
+    [HttpPost("payments/sweep")]
+    public async Task<IActionResult> SweepPayments()
+    {
+        try
+        {
+            var treasury = await _appConfig.GetTreasuryWalletAsync();
+            if (string.IsNullOrWhiteSpace(treasury))
+                return BadRequest(new { status = "error", message = "Treasury wallet not configured. Set TreasuryWalletAddress in Config tab." });
+
+            var confirmed = await _dbContext.PendingPayments
+                .Where(p => p.IsConfirmed)
+                .ToListAsync();
+
+            if (confirmed.Count == 0)
+                return Ok(new { status = "success", swept = 0, message = "No confirmed payments to sweep." });
+
+            var rpcClient = Solnet.Rpc.ClientFactory.GetClient("https://api.mainnet-beta.solana.com");
+            var treasuryPubkey = new Solnet.Wallet.PublicKey(treasury);
+
+            int swept = 0;
+            var errors = new List<string>();
+
+            foreach (var payment in confirmed)
+            {
+                try
+                {
+                    var privateKeyBytes = Convert.FromBase64String(payment.WalletPrivateKey);
+                    var account = new Solnet.Wallet.Account(privateKeyBytes[..32], privateKeyBytes[32..]);
+
+                    var balanceRes = await rpcClient.GetBalanceAsync(account.PublicKey);
+                    if (!balanceRes.WasSuccessful || balanceRes.Result.Value == 0)
+                        continue;
+
+                    var lamports = balanceRes.Result.Value;
+                    // Reserve ~5000 lamports for tx fee
+                    var sendLamports = lamports > 5000 ? lamports - 5000 : 0;
+                    if (sendLamports == 0) continue;
+
+                    var blockHashRes = await rpcClient.GetLatestBlockHashAsync();
+                    if (!blockHashRes.WasSuccessful) continue;
+
+                    var tx = new Solnet.Rpc.Builders.TransactionBuilder()
+                        .SetRecentBlockHash(blockHashRes.Result.Value.Blockhash)
+                        .SetFeePayer(account.PublicKey)
+                        .AddInstruction(Solnet.Programs.SystemProgram.Transfer(
+                            account.PublicKey, treasuryPubkey, sendLamports))
+                        .Build(account);
+
+                    var sendRes = await rpcClient.SendTransactionAsync(tx, commitment: Solnet.Rpc.Types.Commitment.Confirmed);
+                    if (sendRes.WasSuccessful)
+                    {
+                        swept++;
+                        _logger.LogInformation("Swept {Lamports} lamports from {Wallet} → {Treasury}, sig={Sig}",
+                            sendLamports, payment.WalletPublicKey, treasury, sendRes.Result);
+                    }
+                    else
+                    {
+                        errors.Add($"{payment.WalletPublicKey[..8]}: {sendRes.Reason}");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    errors.Add($"{payment.WalletPublicKey[..8]}: {ex.Message}");
+                }
+            }
+
+            return Ok(new { status = "success", swept, errors });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error sweeping payments");
+            return StatusCode(500, new { status = "error", message = ex.Message });
+        }
+    }
 }
 
 public record EditCARequest(string ContractAddress, string Chain);
 public record GrantAccessRequest(long ChatId, bool IsRN4L);
 public record RevokeAccessRequest(long ChatId);
+public record SetConfigRequest(string Key, string Value, string? Description);

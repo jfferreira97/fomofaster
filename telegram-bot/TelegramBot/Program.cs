@@ -48,6 +48,7 @@ builder.Services.AddSingleton<ITelegramService, TelegramService>();
 builder.Services.AddSingleton<ISolanaService, SolanaService>();
 builder.Services.AddSingleton<IDexScreenerService, DexScreenerService>();
 builder.Services.AddSingleton<ContractAddressRetryService>();
+builder.Services.AddSingleton<AppConfigService>();
 builder.Services.AddHostedService<TelegramBotPollingService>(); // Background polling service
 builder.Services.AddHostedService(provider => provider.GetRequiredService<ContractAddressRetryService>()); // CA retry service
 builder.Services.AddSingleton<PaymentPollerService>();
@@ -81,6 +82,10 @@ using (var scope = app.Services.CreateScope())
     var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     dbContext.Database.Migrate();
 }
+
+// Seed default config values
+var appConfigService = app.Services.GetRequiredService<AppConfigService>();
+await appConfigService.SeedDefaultsAsync();
 
 // Configure the HTTP request pipeline
 if (app.Environment.IsDevelopment())

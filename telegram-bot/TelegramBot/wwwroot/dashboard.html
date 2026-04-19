@@ -709,6 +709,7 @@
             <div class="tab active" onclick="switchTab('notifications')">Notifications</div>
             <div class="tab" onclick="switchTab('users')">Users</div>
             <div class="tab" onclick="switchTab('payments')">Payments</div>
+            <div class="tab" onclick="switchTab('config')">Config</div>
             <div class="tab" onclick="switchTab('settings')">Settings</div>
         </div>
 
@@ -776,6 +777,7 @@
                                 <option value="blocked">Blocked</option>
                             </select>
                             <button onclick="loadPayments()" class="btn btn-secondary" style="padding:6px 12px;font-size:13px;">Refresh</button>
+                            <button onclick="sweepPayments()" class="btn btn-danger" style="padding:6px 12px;font-size:13px;">💸 Sweep All</button>
                         </div>
                         <table id="paymentsTable">
                             <thead>
@@ -791,6 +793,32 @@
                             </thead>
                             <tbody id="paymentsTableBody">
                                 <tr><td colspan="6" style="text-align:center;color:#8a96a0;">Loading...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Config Tab -->
+        <div id="config-tab" class="tab-content">
+            <div class="chat-area" style="overflow-y: auto;">
+                <div class="settings-container">
+                    <div class="settings-section">
+                        <div class="settings-section-title">App Config</div>
+                        <p style="color:#8a96a0;margin-bottom:12px;">Key-value settings stored in the database. Changes take effect immediately.</p>
+                        <table id="configTable">
+                            <thead>
+                                <tr>
+                                    <th>Key</th>
+                                    <th>Value</th>
+                                    <th>Description</th>
+                                    <th>Last Updated</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="configTableBody">
+                                <tr><td colspan="5" style="text-align:center;color:#8a96a0;">Loading...</td></tr>
                             </tbody>
                         </table>
                     </div>
@@ -1445,6 +1473,8 @@
                 loadUsers();
             } else if (tabName === 'payments') {
                 loadPayments();
+            } else if (tabName === 'config') {
+                loadConfig();
             }
         }
 
@@ -2044,6 +2074,81 @@
                 });
                 if (res.ok) { await loadPayments(); }
                 else { alert('Failed to revoke access'); }
+            } catch (err) { alert('Error: ' + err.message); }
+        }
+
+        // Config tab
+        async function loadConfig() {
+            try {
+                const res = await fetch('/api/dashboard/config');
+                const data = await res.json();
+                const tbody = document.getElementById('configTableBody');
+                const fmt = d => d ? new Date(d).toISOString().slice(0, 16).replace('T', ' ') : '—';
+
+                tbody.innerHTML = data.configs.map(c => `
+                    <tr id="config-row-${c.id}">
+                        <td style="font-family:monospace;font-size:13px;">${c.key}</td>
+                        <td>
+                            <span id="config-val-${c.id}">${c.value || '<span style="color:#6c7883;">not set</span>'}</span>
+                            <input id="config-input-${c.id}" type="text" value="${c.value || ''}"
+                                style="display:none;width:100%;padding:4px 8px;background:#0e1621;border:1px solid #2b5278;border-radius:4px;color:#e8e9ea;font-size:13px;">
+                        </td>
+                        <td style="color:#8a96a0;font-size:13px;">${c.description || '—'}</td>
+                        <td style="font-size:12px;color:#6c7883;">${fmt(c.updatedAt)}</td>
+                        <td>
+                            <div style="display:flex;gap:6px;">
+                                <button onclick="editConfig(${c.id},'${c.key}')" id="config-edit-btn-${c.id}" class="btn btn-secondary" style="padding:4px 8px;font-size:12px;">Edit</button>
+                                <button onclick="saveConfig(${c.id},'${c.key}')" id="config-save-btn-${c.id}" class="btn btn-primary" style="display:none;padding:4px 8px;font-size:12px;">Save</button>
+                                <button onclick="cancelConfig(${c.id},'${c.value||''}')" id="config-cancel-btn-${c.id}" class="btn btn-secondary" style="display:none;padding:4px 8px;font-size:12px;">Cancel</button>
+                            </div>
+                        </td>
+                    </tr>`).join('');
+            } catch (err) {
+                console.error('Failed to load config', err);
+            }
+        }
+
+        function editConfig(id, key) {
+            document.getElementById(`config-val-${id}`).style.display = 'none';
+            document.getElementById(`config-input-${id}`).style.display = 'block';
+            document.getElementById(`config-edit-btn-${id}`).style.display = 'none';
+            document.getElementById(`config-save-btn-${id}`).style.display = 'inline-block';
+            document.getElementById(`config-cancel-btn-${id}`).style.display = 'inline-block';
+        }
+
+        function cancelConfig(id, originalValue) {
+            document.getElementById(`config-input-${id}`).value = originalValue;
+            document.getElementById(`config-val-${id}`).style.display = 'inline';
+            document.getElementById(`config-input-${id}`).style.display = 'none';
+            document.getElementById(`config-edit-btn-${id}`).style.display = 'inline-block';
+            document.getElementById(`config-save-btn-${id}`).style.display = 'none';
+            document.getElementById(`config-cancel-btn-${id}`).style.display = 'none';
+        }
+
+        async function saveConfig(id, key) {
+            const value = document.getElementById(`config-input-${id}`).value.trim();
+            try {
+                const res = await fetch('/api/dashboard/config', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ key, value, description: null })
+                });
+                if (res.ok) { await loadConfig(); }
+                else { alert('Failed to save config'); }
+            } catch (err) { alert('Error: ' + err.message); }
+        }
+
+        async function sweepPayments() {
+            if (!confirm('Sweep all confirmed payment wallets to treasury? This sends real SOL transactions.')) return;
+            try {
+                const res = await fetch('/api/dashboard/payments/sweep', { method: 'POST' });
+                const data = await res.json();
+                if (data.status === 'success') {
+                    const errMsg = data.errors?.length ? `\nErrors: ${data.errors.join(', ')}` : '';
+                    alert(`Swept ${data.swept} wallet(s).${errMsg}`);
+                } else {
+                    alert('Error: ' + data.message);
+                }
             } catch (err) { alert('Error: ' + err.message); }
         }
 
