@@ -74,6 +74,7 @@ public class PaymentPollerService : BackgroundService
                 if (balance >= RequiredLamports)
                 {
                     payment.IsConfirmed = true;
+                    payment.ConfirmedAt = DateTime.UtcNow;
                     await dbContext.SaveChangesAsync();
 
                     var userService = scope.ServiceProvider.GetRequiredService<IUserService>();

@@ -10,4 +10,5 @@ public class PendingPayment
     public DateTime CreatedAt { get; set; }
     public DateTime ExpiresAt { get; set; }
     public bool IsConfirmed { get; set; }
+    public DateTime? ConfirmedAt { get; set; }
 }

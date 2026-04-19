@@ -258,7 +258,8 @@ public class DashboardController : ControllerBase
                         isActive = u.IsActive,
                         status,
                         wallet = relevantPayment?.WalletPublicKey,
-                        paymentDate = confirmed?.CreatedAt,
+                        requestedAt = relevantPayment?.CreatedAt,
+                        paymentDate = confirmed?.ConfirmedAt,
                         expiresAt = latestPending?.ExpiresAt
                     };
                 })

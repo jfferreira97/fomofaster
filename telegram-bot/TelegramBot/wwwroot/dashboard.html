@@ -783,6 +783,7 @@
                                     <th>User</th>
                                     <th>Status</th>
                                     <th>Wallet</th>
+                                    <th>Requested At</th>
                                     <th>Payment Date</th>
                                     <th>Expires</th>
                                     <th>Actions</th>
@@ -1982,7 +1983,7 @@
             const rows = filter === 'all' ? paymentsData : paymentsData.filter(p => p.status === filter);
 
             if (rows.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:#8a96a0;">No records</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#8a96a0;">No records</td></tr>';
                 return;
             }
 
@@ -2001,11 +2002,12 @@
             const shortWallet = w => w ? w.slice(0, 6) + '...' + w.slice(-4) : '—';
 
             tbody.innerHTML = rows.map(p => {
-                const user = p.username ? `@${p.username}` : p.firstName || p.chatId;
+                const userDisplay = (p.username ? `@${p.username}` : p.firstName || '') + `<br><span style="color:#6c7883;font-size:11px;">${p.chatId}</span>`;
                 return `<tr>
-                    <td title="${p.chatId}">${user}</td>
+                    <td>${userDisplay}</td>
                     <td>${statusBadge(p.status)}</td>
                     <td title="${p.wallet || ''}" style="font-family:monospace;font-size:12px;">${shortWallet(p.wallet)}</td>
+                    <td>${fmt(p.requestedAt)}</td>
                     <td>${fmt(p.paymentDate)}</td>
                     <td>${p.rnExpiresAt ? fmt(p.rnExpiresAt) : (p.expiresAt ? fmt(p.expiresAt) : '—')}</td>
                     <td>
