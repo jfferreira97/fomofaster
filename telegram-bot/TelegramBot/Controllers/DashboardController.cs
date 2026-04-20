@@ -391,7 +391,8 @@ public class DashboardController : ControllerBase
                 try
                 {
                     var privateKeyBytes = Convert.FromBase64String(payment.WalletPrivateKey);
-                    var account = new Solnet.Wallet.Account(privateKeyBytes[..32], privateKeyBytes[32..]);
+                    var pubkey = new Solnet.Wallet.PublicKey(payment.WalletPublicKey);
+                    var account = new Solnet.Wallet.Account(privateKeyBytes, pubkey.KeyBytes);
 
                     var balanceRes = await rpcClient.GetBalanceAsync(account.PublicKey);
                     if (!balanceRes.WasSuccessful || balanceRes.Result.Value == 0)
