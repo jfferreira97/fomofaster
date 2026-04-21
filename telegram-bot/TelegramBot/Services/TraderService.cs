@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Telegram.Bot;
 using Telegram.Bot.Types.Enums;
@@ -45,6 +45,11 @@ public class TraderService : ITraderService
         return await _dbContext.Traders.OrderBy(t => t.Id).ToListAsync();
     }
 
+    public async Task<List<Trader>> GetPublicTradersAsync()
+    {
+        return await _dbContext.Traders.Where(t => !t.IsHidden).OrderBy(t => t.Id).ToListAsync();
+    }
+
     public async Task<List<Trader>> GetTradersByUserIdAsync(int userId)
     {
         return await _dbContext.UserTraders
@@ -55,7 +60,27 @@ public class TraderService : ITraderService
             .ToListAsync();
     }
 
-    public async Task<Trader> AddOrUpdateTraderAsync(string handle)
+    public async Task<List<Trader>> GetPublicTradersByUserIdAsync(int userId)
+    {
+        return await _dbContext.UserTraders
+            .Where(ut => ut.UserId == userId)
+            .Include(ut => ut.Trader)
+            .Where(ut => !ut.Trader.IsHidden)
+            .Select(ut => ut.Trader)
+            .OrderBy(t => t.Id)
+            .ToListAsync();
+    }
+
+    public async Task<bool> SetTraderHiddenAsync(int traderId, bool isHidden)
+    {
+        var trader = await _dbContext.Traders.FindAsync(traderId);
+        if (trader == null) return false;
+        trader.IsHidden = isHidden;
+        await _dbContext.SaveChangesAsync();
+        return true;
+    }
+
+    public async Task<Trader> AddOrUpdateTraderAsync(string handle, bool isHidden = false)
     {
         var trader = await GetTraderByHandleIgnoreCaseAsync(handle);
         var isNewTrader = trader == null;
@@ -66,11 +91,12 @@ public class TraderService : ITraderService
             {
                 Handle = handle,
                 FirstSeenAt = DateTime.UtcNow,
-                LastSeenAt = DateTime.UtcNow
+                LastSeenAt = DateTime.UtcNow,
+                IsHidden = isHidden
             };
 
             _dbContext.Traders.Add(trader);
-            _logger.LogInformation("New trader added: Handle={Handle}", handle);
+            _logger.LogInformation("New trader added: Handle={Handle}, IsHidden={IsHidden}", handle, isHidden);
         }
         else
         {
@@ -85,7 +111,6 @@ public class TraderService : ITraderService
 
         await _dbContext.SaveChangesAsync();
 
-        // Broadcast message to all users if this is a new trader
         if (isNewTrader && _botClient != null)
         {
             await BroadcastNewTraderMessageAsync(trader);
@@ -99,7 +124,6 @@ public class TraderService : ITraderService
         if (_botClient == null)
             return;
 
-        // Get all active users
         var activeUsers = await _dbContext.Users
             .Where(u => u.IsActive)
             .ToListAsync();
@@ -110,16 +134,18 @@ public class TraderService : ITraderService
         {
             try
             {
+                // Skip hidden trader broadcast for users without access
+                if (trader.IsHidden && !user.HasHiddenTradersAccess)
+                    continue;
+
                 string message;
-                // Escape underscores in handle to prevent Markdown parsing issues
                 var escapedHandle = trader.Handle.Replace("_", "\\_");
 
-                if (user.AutoFollowNewTraders)
+                if (user.AutoFollowNewTraders && (!trader.IsHidden || user.HasHiddenTradersAccess))
                 {
-                    // Auto-follow the user to this trader
                     await FollowTraderAsync(user.Id, trader.Id);
 
-                    message = $@"🎯 A new sharp FOMO APP trader, [{escapedHandle}](https://x.com/{trader.Handle}), was just added to our services!
+                    message = $@"🔔 A new sharp FOMO APP trader, [{escapedHandle}](https://x.com/{trader.Handle}), was just added to our services!
 
 ✅ This trader's trades will be tracked by you since you have auto-follow ON.
 
@@ -128,9 +154,9 @@ Use /autofollow off if you want to opt out completely of auto-following new trad
                 }
                 else
                 {
-                    message = $@"🎯 A new sharp FOMO APP trader, [{escapedHandle}](https://x.com/{trader.Handle}), was just added to our services!
+                    message = $@"🔔 A new sharp FOMO APP trader, [{escapedHandle}](https://x.com/{trader.Handle}), was just added to our services!
 
-ℹ️ You are NOT following this trader since you have auto-follow OFF.
+⚠️ You are NOT following this trader since you have auto-follow OFF.
 
 Use /follow {escapedHandle} or /follow {trader.Id} if you want to follow them.
 Use /autofollow on if you want to opt in to auto-following new traders.";
@@ -154,12 +180,11 @@ Use /autofollow on if you want to opt in to auto-following new traders.";
 
     public async Task<bool> FollowTraderAsync(int userId, int traderId)
     {
-        // Check if already following - O(log n) thanks to composite index
         var existing = await _dbContext.UserTraders
             .FirstOrDefaultAsync(ut => ut.UserId == userId && ut.TraderId == traderId);
 
         if (existing != null)
-            return false; // Already following
+            return false;
 
         var userTrader = new UserTrader
         {
@@ -190,7 +215,7 @@ Use /autofollow on if you want to opt in to auto-following new traders.";
             .FirstOrDefaultAsync(ut => ut.UserId == userId && ut.TraderId == traderId);
 
         if (userTrader == null)
-            return false; // Not following
+            return false;
 
         _dbContext.UserTraders.Remove(userTrader);
         await _dbContext.SaveChangesAsync();
@@ -210,12 +235,10 @@ Use /autofollow on if you want to opt in to auto-following new traders.";
 
     public async Task<bool> IsFollowingAsync(int userId, int traderId)
     {
-        // O(log n) lookup thanks to composite index
         return await _dbContext.UserTraders
             .AnyAsync(ut => ut.UserId == userId && ut.TraderId == traderId);
     }
 
-    // CRITICAL FOR NOTIFICATION FILTERING - O(log n) thanks to TraderId index
     public async Task<List<int>> GetFollowerUserIdsForTraderAsync(int traderId)
     {
         return await _dbContext.UserTraders
@@ -245,7 +268,6 @@ Use /autofollow on if you want to opt in to auto-following new traders.";
                 followedCount++;
         }
 
-        // Update AutoFollowNewTraders flag
         var user = await _dbContext.Users.FindAsync(userId);
         if (user != null)
         {
@@ -254,6 +276,38 @@ Use /autofollow on if you want to opt in to auto-following new traders.";
         }
 
         _logger.LogInformation("User {UserId} followed {Count} traders (all)", userId, followedCount);
+        return followedCount;
+    }
+
+    public async Task<int> FollowAllPublicTradersAsync(int userId)
+    {
+        var publicTraders = await GetPublicTradersAsync();
+        var followedCount = 0;
+
+        foreach (var trader in publicTraders)
+        {
+            var success = await FollowTraderAsync(userId, trader.Id);
+            if (success)
+                followedCount++;
+        }
+
+        _logger.LogInformation("User {UserId} followed {Count} public traders", userId, followedCount);
+        return followedCount;
+    }
+
+    public async Task<int> FollowAllHiddenTradersAsync(int userId)
+    {
+        var hiddenTraders = await _dbContext.Traders.Where(t => t.IsHidden).OrderBy(t => t.Id).ToListAsync();
+        var followedCount = 0;
+
+        foreach (var trader in hiddenTraders)
+        {
+            var success = await FollowTraderAsync(userId, trader.Id);
+            if (success)
+                followedCount++;
+        }
+
+        _logger.LogInformation("User {UserId} followed {Count} hidden traders", userId, followedCount);
         return followedCount;
     }
 
@@ -269,7 +323,6 @@ Use /autofollow on if you want to opt in to auto-following new traders.";
                 unfollowedCount++;
         }
 
-        // Update AutoFollowNewTraders flag
         var user = await _dbContext.Users.FindAsync(userId);
         if (user != null)
         {

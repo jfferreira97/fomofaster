@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using TelegramBot.Data;
 using TelegramBot.Models;
 using TelegramBot.Services;
@@ -27,7 +27,8 @@ builder.Services.AddSignalR();
 
 // Add database
 builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseSqlite("Data Source=fomofaster.db"));
+    options.UseSqlite("Data Source=fomofaster.db")
+           .ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning)));
 
 // Configure CORS for development
 builder.Services.AddCors(options =>

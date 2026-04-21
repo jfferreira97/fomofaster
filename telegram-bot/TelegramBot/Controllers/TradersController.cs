@@ -1,9 +1,8 @@
-using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Mvc;
 using TelegramBot.Services;
 
 namespace TelegramBot.Controllers;
 
-// This API Controller isn't publicly exposed, mostly used for internal testing, and simulating user actions.
 [ApiController]
 [Route("api/[controller]")]
 public class TradersController : ControllerBase
@@ -44,18 +43,10 @@ public class TradersController : ControllerBase
         {
             var user = await _userService.GetUserByChatIdAsync(request.ChatId);
             if (user == null)
-            {
                 return NotFound(new { status = "error", message = "User not found" });
-            }
 
             var success = await _traderService.FollowTraderAsync(user.Id, request.TraderId);
-
-            return Ok(new
-            {
-                status = "success",
-                message = success ? "Now following trader" : "Already following trader",
-                followed = success
-            });
+            return Ok(new { status = "success", message = success ? "Now following trader" : "Already following trader", followed = success });
         }
         catch (Exception ex)
         {
@@ -71,18 +62,10 @@ public class TradersController : ControllerBase
         {
             var user = await _userService.GetUserByChatIdAsync(request.ChatId);
             if (user == null)
-            {
                 return NotFound(new { status = "error", message = "User not found" });
-            }
 
             var success = await _traderService.UnfollowTraderAsync(user.Id, request.TraderId);
-
-            return Ok(new
-            {
-                status = "success",
-                message = success ? "Unfollowed trader" : "Was not following trader",
-                unfollowed = success
-            });
+            return Ok(new { status = "success", message = success ? "Unfollowed trader" : "Was not following trader", unfollowed = success });
         }
         catch (Exception ex)
         {
@@ -97,31 +80,37 @@ public class TradersController : ControllerBase
         try
         {
             var added = new List<string>();
-            var skipped = new List<string>();
 
             foreach (var handle in request.Handles)
             {
-                // Strip @ if present
                 var cleanHandle = handle.TrimStart('@');
-
-                // Add new trader
-                await _traderService.AddOrUpdateTraderAsync(cleanHandle);
+                await _traderService.AddOrUpdateTraderAsync(cleanHandle, request.IsHidden);
                 added.Add(cleanHandle);
             }
 
-            return Ok(new
-            {
-                status = "success",
-                added = added.Count,
-                skipped = skipped.Count,
-                total = request.Handles.Length,
-                addedHandles = added,
-                skippedHandles = skipped
-            });
+            return Ok(new { status = "success", added = added.Count, total = request.Handles.Length, addedHandles = added });
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error bulk adding traders");
+            return StatusCode(500, new { status = "error", message = ex.Message });
+        }
+    }
+
+    [HttpPost("{traderId}/toggle-hidden")]
+    public async Task<IActionResult> ToggleHidden(int traderId, [FromBody] ToggleHiddenRequest request)
+    {
+        try
+        {
+            var success = await _traderService.SetTraderHiddenAsync(traderId, request.IsHidden);
+            if (!success)
+                return NotFound(new { status = "error", message = "Trader not found" });
+
+            return Ok(new { status = "success" });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error toggling hidden for trader {TraderId}", traderId);
             return StatusCode(500, new { status = "error", message = ex.Message });
         }
     }
@@ -132,17 +121,10 @@ public class TradersController : ControllerBase
         try
         {
             var success = await _traderService.DeleteTraderAsync(traderId);
-
             if (!success)
-            {
                 return NotFound(new { status = "error", message = "Trader not found" });
-            }
 
-            return Ok(new
-            {
-                status = "success",
-                message = "Trader deleted (UserTrader relationships automatically removed via cascade delete)"
-            });
+            return Ok(new { status = "success", message = "Trader deleted" });
         }
         catch (Exception ex)
         {
@@ -156,20 +138,12 @@ public class TradersController : ControllerBase
     {
         try
         {
-            // Strip @ if present
             var cleanHandle = handle.TrimStart('@');
             var success = await _traderService.DeleteTraderByHandleAsync(cleanHandle);
-
             if (!success)
-            {
                 return NotFound(new { status = "error", message = "Trader not found" });
-            }
 
-            return Ok(new
-            {
-                status = "success",
-                message = "Trader deleted (UserTrader relationships automatically removed via cascade delete)"
-            });
+            return Ok(new { status = "success", message = "Trader deleted" });
         }
         catch (Exception ex)
         {
@@ -180,4 +154,5 @@ public class TradersController : ControllerBase
 }
 
 public record FollowRequest(long ChatId, int TraderId);
-public record BulkAddTradersRequest(string[] Handles);
+public record BulkAddTradersRequest(string[] Handles, bool IsHidden = false);
+public record ToggleHiddenRequest(bool IsHidden);

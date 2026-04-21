@@ -274,6 +274,11 @@ namespace TelegramBot.Migrations
                     b.Property<DateTime>("LastSeenAt")
                         .HasColumnType("TEXT");
 
+                    b.Property<bool>("IsHidden")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasDefaultValue(false);
+
                     b.HasKey("Id");
 
                     b.HasIndex("Handle")
@@ -305,6 +310,11 @@ namespace TelegramBot.Migrations
 
                     b.Property<bool>("IsRegisteredNurse")
                         .HasColumnType("INTEGER");
+
+                    b.Property<bool>("HasHiddenTradersAccess")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasDefaultValue(false);
 
                     b.Property<DateTime>("JoinedAt")
                         .HasColumnType("TEXT");

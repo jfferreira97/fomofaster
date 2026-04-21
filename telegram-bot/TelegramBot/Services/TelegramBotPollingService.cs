@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.SignalR;
+﻿using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Telegram.Bot;
@@ -138,7 +138,7 @@ public class TelegramBotPollingService : BackgroundService
                     message.From?.FirstName
                 );
 
-                await traderService.FollowAllTradersAsync(newUser.Id);
+                await traderService.FollowAllPublicTradersAsync(newUser.Id);
                 var allTradersCount = await traderService.GetAllTradersAsync();
 
                 await _botClient.SendTextMessageAsync(
@@ -210,7 +210,9 @@ You'll only receive notifications from traders you follow!",
                     break;
                 }
 
-                var allTraders = await traderService.GetAllTradersAsync();
+                var allTraders = user.HasHiddenTradersAccess
+                    ? await traderService.GetAllTradersAsync()
+                    : await traderService.GetPublicTradersAsync();
 
                 if (allTraders.Count == 0)
                 {
@@ -256,7 +258,9 @@ Use /follow 1,2,3 or /follow trader1,trader2 to follow traders.";
                     break;
                 }
 
-                var followedTraders = await traderService.GetTradersByUserIdAsync(userForMyTraders.Id);
+                var followedTraders = userForMyTraders.HasHiddenTradersAccess
+                    ? await traderService.GetTradersByUserIdAsync(userForMyTraders.Id)
+                    : await traderService.GetPublicTradersByUserIdAsync(userForMyTraders.Id);
 
                 if (followedTraders.Count == 0)
                 {
