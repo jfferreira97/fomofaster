@@ -144,14 +144,20 @@ public class TelegramService : ITelegramService
                 ? contractAddress[..2] + new string('*', contractAddress.Length - 4) + contractAddress[^2..]
                 : contractAddress;
             obfuscatedMessage = $@"{BuildObfuscatedText(notification.Message, traderHandle, ticker, marketCap)}
-To get full details: /subscribe
 
-📝 Contract: `{redactedCa}`";
+📝 Contract: `{redactedCa}`
+🔗 [DEXScreener](https://dexscreener.com)
+
+To get full details: /subscribe";
         }
         else
         {
             fullMessage = processedMessage;
             obfuscatedMessage = $@"{BuildObfuscatedText(notification.Message, traderHandle, ticker, marketCap)}
+
+📝 Contract: `{new string('*', 44)}`
+🔗 [DEXScreener](https://dexscreener.com)
+
 To get full details: /subscribe";
         }
 
@@ -382,11 +388,28 @@ To get full details: /subscribe";
             _ => $"https://dexscreener.com/solana/{contractAddress}"
         };
 
-        // Build new message with CA
+        // Build full message (RN users)
         var newMessage = $@"{processedMessage}
 
 📝 Contract: `{contractAddress}`
 🔗 [DEXScreener]({dexScreenerUrl})";
+
+        // Build obfuscated message (non-RN users) — redacted CA, homepage DEXScreener link
+        var redactedCa = contractAddress.Length > 4
+            ? contractAddress[..2] + new string('*', contractAddress.Length - 4) + contractAddress[^2..]
+            : contractAddress;
+        var obfuscatedEditMessage = $@"{BuildObfuscatedText(notification.Message, notification.Trader, notification.Ticker, null)}
+
+📝 Contract: `{redactedCa}`
+🔗 [DEXScreener](https://dexscreener.com)
+
+To get full details: /subscribe";
+
+        static bool IsRNActive(Models.User u) =>
+            u.IsRN4L || (u.IsRegisteredNurse && u.RNExpiresAt > DateTime.UtcNow);
+
+        var allUsers = await userService.GetAllActiveUsersAsync();
+        var usersByChatId = allUsers.ToDictionary(u => u.ChatId);
 
         int successCount = 0;
         int failCount = 0;
@@ -394,12 +417,14 @@ To get full details: /subscribe";
         // Edit all messages
         foreach (var sentMessage in sentMessages)
         {
+            var user = usersByChatId.GetValueOrDefault(sentMessage.ChatId);
+            var messageToSend = user != null && IsRNActive(user) ? newMessage : obfuscatedEditMessage;
             try
             {
                 await _botClient.EditMessageTextAsync(
                     chatId: sentMessage.ChatId,
                     messageId: sentMessage.MessageId,
-                    text: newMessage,
+                    text: messageToSend,
                     parseMode: ParseMode.Markdown,
                     disableWebPagePreview: true
                 );
@@ -514,7 +539,11 @@ To get full details: /subscribe";
                 "coin",
                 System.Text.RegularExpressions.RegexOptions.IgnoreCase);
 
-        // Dollar amounts stay visible — only the ticker is hidden
+        // Hide buy size (dollar amount after "bought")
+        text = System.Text.RegularExpressions.Regex.Replace(
+            text,
+            @"(?<=bought )\$[\d,]+\.?\d*",
+            "****");
 
         // Escape markdown special chars
         text = text.Replace("_", "\\_").Replace("*", "\\*").Replace("`", "\\`").Replace("[", "\\[");
