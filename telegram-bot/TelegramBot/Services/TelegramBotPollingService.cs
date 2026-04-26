@@ -378,8 +378,12 @@ Use /unfollow 1,2,3 or /unfollow trader1,trader2 to unfollow traders.";
                 // Handle /follow all
                 if (followInput.Equals("all", StringComparison.OrdinalIgnoreCase))
                 {
-                    var followedCount = await traderService.FollowAllTradersAsync(userForFollow.Id);
-                    var allTradersForFollow = await traderService.GetAllTradersAsync();
+                    var followedCount = userForFollow.HasHiddenTradersAccess
+                        ? await traderService.FollowAllTradersAsync(userForFollow.Id)
+                        : await traderService.FollowAllPublicTradersAsync(userForFollow.Id);
+                    var allTradersForFollow = userForFollow.HasHiddenTradersAccess
+                        ? await traderService.GetAllTradersAsync()
+                        : await traderService.GetPublicTradersAsync();
 
                     if (allTradersForFollow.Count == 0)
                     {

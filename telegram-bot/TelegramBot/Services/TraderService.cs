@@ -186,6 +186,15 @@ Use /autofollow on if you want to opt in to auto-following new traders.";
         if (existing != null)
             return false;
 
+        // Block following hidden traders without access
+        var trader = await _dbContext.Traders.FindAsync(traderId);
+        if (trader?.IsHidden == true)
+        {
+            var user = await _dbContext.Users.FindAsync(userId);
+            if (user == null || !user.HasHiddenTradersAccess)
+                return false;
+        }
+
         var userTrader = new UserTrader
         {
             UserId = userId,
