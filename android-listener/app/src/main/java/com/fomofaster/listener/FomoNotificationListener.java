@@ -12,6 +12,8 @@ import android.util.Log;
 import org.json.JSONObject;
 
 import java.io.IOException;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 import okhttp3.Call;
@@ -33,8 +35,12 @@ public class FomoNotificationListener extends NotificationListenerService {
     public static final String EXTRA_NOTIFICATION_TEXT = "notification_text";
     public static final String EXTRA_RESPONSE = "response";
 
+    private static final int MAX_RETRIES = 3;
+    private static final long[] RETRY_DELAYS_MS = {200, 500, 1000};
+
     private OkHttpClient httpClient;
     private String backendUrl;
+    private ScheduledExecutorService retryExecutor;
 
     @Override
     public void onCreate() {
@@ -47,6 +53,8 @@ public class FomoNotificationListener extends NotificationListenerService {
                 .writeTimeout(10, TimeUnit.SECONDS)
                 .readTimeout(30, TimeUnit.SECONDS)
                 .build();
+
+        retryExecutor = Executors.newSingleThreadScheduledExecutor();
 
         // Load backend URL from preferences
         loadBackendUrl();
@@ -85,22 +93,17 @@ public class FomoNotificationListener extends NotificationListenerService {
         String message = title + " " + text;
 
         // Send to backend immediately, pass the notification key for dismissal
-        sendToBackend(message, timestamp, sbn.getKey());
+        sendToBackendWithRetry(message, timestamp, sbn.getKey(), 0);
     }
 
-    private void sendToBackend(String message, long timestamp, String notificationKey) {
-        // Reload backend URL in case it changed
-        loadBackendUrl();
-
+    private void sendToBackendWithRetry(String message, long timestamp, String notificationKey, int attempt) {
         try {
-            // Build JSON payload
             JSONObject json = new JSONObject();
             json.put("message", message);
 
             String jsonString = json.toString();
-            Log.d(TAG, "Sending to backend: " + jsonString);
+            Log.d(TAG, "Sending to backend (attempt " + (attempt + 1) + "): " + jsonString);
 
-            // Build HTTP request
             MediaType JSON_TYPE = MediaType.get("application/json; charset=utf-8");
             RequestBody body = RequestBody.create(jsonString, JSON_TYPE);
 
@@ -113,13 +116,11 @@ public class FomoNotificationListener extends NotificationListenerService {
                     .post(body)
                     .build();
 
-            // Send async request
             httpClient.newCall(request).enqueue(new Callback() {
                 @Override
                 public void onFailure(Call call, IOException e) {
-                    Log.e(TAG, "Failed to send notification to backend", e);
-                    broadcastLogEntry("FAILED", message, "Error: " + e.getMessage());
-                    // Don't dismiss notification on failure - keeps it visible so user knows something went wrong
+                    Log.e(TAG, "Network failure on attempt " + (attempt + 1), e);
+                    scheduleRetry(message, timestamp, notificationKey, attempt, "Network error: " + e.getMessage());
                 }
 
                 @Override
@@ -132,8 +133,6 @@ public class FomoNotificationListener extends NotificationListenerService {
                     if (response.isSuccessful()) {
                         Log.d(TAG, "Successfully sent to backend: " + response.code());
                         broadcastLogEntry("SUCCESS (" + response.code() + ")", message, responseBody);
-
-                        // Dismiss the notification from Android tray after successful send
                         try {
                             cancelNotification(notificationKey);
                             Log.d(TAG, "Dismissed notification from tray: " + notificationKey);
@@ -141,17 +140,28 @@ public class FomoNotificationListener extends NotificationListenerService {
                             Log.e(TAG, "Failed to dismiss notification", e);
                         }
                     } else {
-                        Log.e(TAG, "Backend responded with error: " + response.code());
-                        broadcastLogEntry("ERROR (" + response.code() + ")", message, responseBody);
-                        // Don't dismiss on error response either
+                        Log.e(TAG, "Backend error on attempt " + (attempt + 1) + ": " + response.code());
+                        scheduleRetry(message, timestamp, notificationKey, attempt, "HTTP " + response.code() + ": " + responseBody);
                     }
                     response.close();
                 }
             });
 
         } catch (Exception e) {
-            Log.e(TAG, "Error sending to backend", e);
+            Log.e(TAG, "Exception building request", e);
             broadcastLogEntry("EXCEPTION", message, "Error: " + e.getMessage());
+        }
+    }
+
+    private void scheduleRetry(String message, long timestamp, String notificationKey, int attempt, String errorDetail) {
+        if (attempt + 1 < MAX_RETRIES) {
+            long delayMs = RETRY_DELAYS_MS[attempt];
+            Log.d(TAG, "Retrying in " + delayMs + "ms (attempt " + (attempt + 2) + "/" + MAX_RETRIES + ")");
+            broadcastLogEntry("RETRYING (" + (attempt + 2) + "/" + MAX_RETRIES + ")", message, errorDetail);
+            retryExecutor.schedule(() -> sendToBackendWithRetry(message, timestamp, notificationKey, attempt + 1), delayMs, TimeUnit.MILLISECONDS);
+        } else {
+            Log.e(TAG, "All " + MAX_RETRIES + " attempts failed, giving up");
+            broadcastLogEntry("FAILED (all retries exhausted)", message, errorDetail);
         }
     }
 
@@ -209,6 +219,7 @@ public class FomoNotificationListener extends NotificationListenerService {
     @Override
     public void onDestroy() {
         super.onDestroy();
+        retryExecutor.shutdownNow();
         Log.d(TAG, "FomoNotificationListener service destroyed");
     }
 }
