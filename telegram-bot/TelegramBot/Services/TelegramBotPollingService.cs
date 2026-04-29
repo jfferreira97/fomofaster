@@ -13,10 +13,14 @@ namespace TelegramBot.Services;
 public class TelegramBotPollingService : BackgroundService
 {
     private readonly TelegramBotClient? _botClient;
+    private readonly TelegramBotClient? _adminBotClient;
+    private readonly TelegramSettings _settings;
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<TelegramBotPollingService> _logger;
     private readonly IHubContext<DashboardHub> _hubContext;
     private int _offset = 0;
+    private long _ownerChatId;
+    private string? _ownerUsername;
 
     // FOMOFASTER token contract address - update this when token launches
     private const string TOKEN_CONTRACT_ADDRESS = "6gCEGUjPisdGFc6FhRGL43hoD263dRF81i2L3bo5bonk";
@@ -27,13 +31,17 @@ public class TelegramBotPollingService : BackgroundService
         ILogger<TelegramBotPollingService> logger,
         IHubContext<DashboardHub> hubContext)
     {
+        _settings = settings.Value;
         _serviceProvider = serviceProvider;
         _logger = logger;
         _hubContext = hubContext;
 
-        if (!string.IsNullOrEmpty(settings.Value.BotToken))
+        if (!string.IsNullOrEmpty(_settings.AdminBotToken))
+            _adminBotClient = new TelegramBotClient(_settings.AdminBotToken);
+
+        if (!string.IsNullOrEmpty(_settings.BotToken))
         {
-            _botClient = new TelegramBotClient(settings.Value.BotToken);
+            _botClient = new TelegramBotClient(_settings.BotToken);
             _logger.LogInformation("Telegram polling service initialized");
         }
         else
@@ -51,6 +59,24 @@ public class TelegramBotPollingService : BackgroundService
         }
 
         _logger.LogInformation("Starting Telegram bot polling...");
+
+        // Resolve owner ChatId and Username from DB at startup
+        try
+        {
+            using var scope = _serviceProvider.CreateScope();
+            var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var owner = await dbContext.Users.FindAsync(_settings.OwnerUserId);
+            if (owner != null)
+            {
+                _ownerChatId = owner.ChatId;
+                _ownerUsername = owner.Username;
+                _logger.LogInformation("Owner resolved: @{Username} ({ChatId})", _ownerUsername, _ownerChatId);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Could not resolve owner from DB UserId {UserId}", _settings.OwnerUserId);
+        }
 
         while (!stoppingToken.IsCancellationRequested)
         {
@@ -111,10 +137,42 @@ public class TelegramBotPollingService : BackgroundService
         using var scope = _serviceProvider.CreateScope();
         var userService = scope.ServiceProvider.GetRequiredService<IUserService>();
 
-        // Handle commands
         if (text.StartsWith("/"))
         {
             await HandleCommandAsync(message, userService);
+        }
+        else
+        {
+            await HandleFreeTextAsync(message);
+        }
+    }
+
+    private async Task HandleFreeTextAsync(Message message)
+    {
+        if (_botClient == null) return;
+
+        var chatId = message.Chat.Id;
+        var text = message.Text ?? "";
+        var username = message.From?.Username ?? message.From?.FirstName ?? "unknown";
+
+        // Auto-reply to the user
+        var supportText = !string.IsNullOrEmpty(_ownerUsername)
+            ? $"This bot doesn't support direct messages. Message the developer directly: @{_ownerUsername}"
+            : "This bot doesn't support direct messages.";
+
+        await _botClient.SendTextMessageAsync(
+            chatId: chatId,
+            text: supportText
+        );
+
+        // Forward to owner via admin bot
+        if (_ownerChatId != 0 && _adminBotClient != null)
+        {
+            await _adminBotClient.SendTextMessageAsync(
+                chatId: _ownerChatId,
+                text: $"📩 Message from @{username} (`{chatId}`):\n\n{text}",
+                parseMode: ParseMode.Markdown
+            );
         }
     }
 
@@ -320,8 +378,12 @@ Use /unfollow 1,2,3 or /unfollow trader1,trader2 to unfollow traders.";
                 // Handle /follow all
                 if (followInput.Equals("all", StringComparison.OrdinalIgnoreCase))
                 {
-                    var followedCount = await traderService.FollowAllTradersAsync(userForFollow.Id);
-                    var allTradersForFollow = await traderService.GetAllTradersAsync();
+                    var followedCount = userForFollow.HasHiddenTradersAccess
+                        ? await traderService.FollowAllTradersAsync(userForFollow.Id)
+                        : await traderService.FollowAllPublicTradersAsync(userForFollow.Id);
+                    var allTradersForFollow = userForFollow.HasHiddenTradersAccess
+                        ? await traderService.GetAllTradersAsync()
+                        : await traderService.GetPublicTradersAsync();
 
                     if (allTradersForFollow.Count == 0)
                     {
