@@ -97,9 +97,6 @@ public class FomoNotificationListener extends NotificationListenerService {
     }
 
     private void sendToBackendWithRetry(String message, long receivedAtMs, String notificationKey, int attempt) {
-        // Reload backend URL in case it changed
-        loadBackendUrl();
-
         try {
             JSONObject json = new JSONObject();
             json.put("message", message);
@@ -123,7 +120,7 @@ public class FomoNotificationListener extends NotificationListenerService {
                 @Override
                 public void onFailure(Call call, IOException e) {
                     Log.e(TAG, "Network failure on attempt " + (attempt + 1), e);
-                    scheduleRetry(message, receivedAtMs, notificationKey, attempt, "Network error: " + e.getMessage());
+                    scheduleRetry(message, timestamp, notificationKey, attempt, "Network error: " + e.getMessage());
                 }
 
                 @Override
