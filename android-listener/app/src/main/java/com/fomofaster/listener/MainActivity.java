@@ -27,8 +27,6 @@ import java.util.Date;
 import java.util.List;
 import java.util.Locale;
 
-import org.json.JSONObject;
-
 import java.io.IOException;
 
 import okhttp3.Call;
@@ -266,9 +264,12 @@ public class MainActivity extends AppCompatActivity {
                 String status = intent.getStringExtra(FomoNotificationListener.EXTRA_STATUS);
                 String notificationText = intent.getStringExtra(FomoNotificationListener.EXTRA_NOTIFICATION_TEXT);
                 String response = intent.getStringExtra(FomoNotificationListener.EXTRA_RESPONSE);
+                String fcmKey = intent.getStringExtra("fcm_key");
+                long receivedAtMs = intent.getLongExtra("received_at_ms", 0);
+                int attempt = intent.getIntExtra("attempt", 1);
 
                 Log.d(TAG, "Received log broadcast: " + status);
-                addLogEntryToUI(status, notificationText, response);
+                addLogEntryToUI(status, notificationText, response, fcmKey, receivedAtMs, attempt);
             }
         };
 
@@ -284,46 +285,25 @@ public class MainActivity extends AppCompatActivity {
 
     private void loadSavedLogEntries() {
         try {
-            SharedPreferences prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
-            String logsJson = prefs.getString("notification_logs", "[]");
-
-            org.json.JSONArray logsArray = new org.json.JSONArray(logsJson);
-
-            for (int i = 0; i < logsArray.length(); i++) {
-                org.json.JSONObject logJson = logsArray.getJSONObject(i);
-                NotificationLogEntry entry = NotificationLogEntry.fromJSON(logJson);
-                logEntries.add(entry);
-            }
-
-            Log.d(TAG, "Loaded " + logEntries.size() + " log entries from persistent storage");
+            logEntries = NotificationLogDatabase.getInstance(this).getRecent(200);
+            Log.d(TAG, "Loaded " + logEntries.size() + " log entries from database");
             refreshLogDisplay();
-
         } catch (Exception e) {
             Log.e(TAG, "Error loading saved log entries", e);
         }
     }
 
     private void clearLog() {
+        NotificationLogDatabase.getInstance(this).clearAll();
         logEntries.clear();
-
-        // Also clear from persistent storage
-        SharedPreferences prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
-        prefs.edit().putString("notification_logs", "[]").apply();
-
         refreshLogDisplay();
         Toast.makeText(this, "Log cleared", Toast.LENGTH_SHORT).show();
     }
 
-    private void addLogEntryToUI(String status, String notificationText, String response) {
+    private void addLogEntryToUI(String status, String notificationText, String response, String fcmKey, long receivedAtMs, int attempt) {
         String timestamp = dateFormat.format(new Date());
-        NotificationLogEntry entry = new NotificationLogEntry(timestamp, status, notificationText, response);
-        logEntries.add(0, entry); // Add to beginning (most recent first)
-
-        // Limit to 50 entries
-        if (logEntries.size() > 50) {
-            logEntries.remove(logEntries.size() - 1);
-        }
-
+        NotificationLogEntry entry = new NotificationLogEntry(timestamp, status, notificationText, response, fcmKey, receivedAtMs, attempt);
+        logEntries.add(0, entry);
         refreshLogDisplay();
     }
 
