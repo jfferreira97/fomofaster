@@ -23,7 +23,7 @@ public class TelegramBotPollingService : BackgroundService
     private string? _ownerUsername;
 
     // FOMOFASTER token contract address - update this when token launches
-    private const string TOKEN_CONTRACT_ADDRESS = "6gCEGUjPisdGFc6FhRGL43hoD263dRF81i2L3bo5bonk";
+    // private const string TOKEN_CONTRACT_ADDRESS = "6gCEGUjPisdGFc6FhRGL43hoD263dRF81i2L3bo5bonk";
 
     public TelegramBotPollingService(
         IOptions<TelegramSettings> settings,
@@ -210,11 +210,10 @@ You're now following all {allTradersCount.Count} traders by default, configure a
 /mytraders - view traders youre following
 /follow - follow specific traders
 /unfollow - unfollow specific traders
-/autofollow - check/toggle auto-follow for new traders (starts ON by default)
+/autofollow <on/off> - check/toggle auto-follow for new traders (starts ON by default)
 /top - view top tokens (e.g., /top 1h, /top sol 1d, /top sol,monad 6h)
-/ca - get the official $FOMOFASTER token contract address
 
-Follow us on twitter, stay tuned for major updates: https://x.com/FasterLabsDEV
+Follow us on twitter, stay tuned for major updates: https://x.com/FOMOFASTER_BOT
 ",
                     parseMode: ParseMode.Markdown
                 );
@@ -246,9 +245,8 @@ Follow us on twitter, stay tuned for major updates: https://x.com/FasterLabsDEV
 /follow all - Follow all traders
 /unfollow <ids/handles> - Unfollow traders (e.g., /unfollow 1,trader2)
 /unfollow all - Unfollow all traders
-/autofollow - Check/toggle auto-follow for new traders (starts ON by default)
+/autofollow <on/off> - Check/toggle auto-follow for new traders (starts ON by default)
 /top [chains] <period> - Top tokens (e.g., /top 1h, /top sol 1d, /top sol,monad 6h)
-/ca - Get FOMOFASTER token contract address
 
 You'll only receive notifications from traders you follow!",
                     parseMode: ParseMode.Markdown
@@ -689,13 +687,13 @@ Use /unfollow 1,2,3 or /unfollow trader1,trader2 to unfollow traders.";
                 }
                 break;
 
-            case "/ca":
-                await _botClient.SendTextMessageAsync(
-                    chatId: chatId,
-                    text: $"`{TOKEN_CONTRACT_ADDRESS}`",
-                    parseMode: ParseMode.Markdown
-                );
-                break;
+            // case "/ca":
+            //     await _botClient.SendTextMessageAsync(
+            //         chatId: chatId,
+            //         text: $"`{TOKEN_CONTRACT_ADDRESS}`",
+            //         parseMode: ParseMode.Markdown
+            //     );
+            //     break;
 
             case "/top":
                 var topArgs = message.Text?.Split(' ', StringSplitOptions.RemoveEmptyEntries);
